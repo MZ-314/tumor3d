@@ -1,0 +1,26 @@
+[
+  {
+    "case": "case_a",
+    "overall_confidence": 0.29078945368528364,
+    "in_plane_confidence": 0.3421052396297455,
+    "depth_confidence": 0.2,
+    "volume_mm3": 59290.22532724068,
+    "runtime_s": 1.97
+  },
+  {
+    "case": "case_b",
+    "overall_confidence": 0.29078945368528364,
+    "in_plane_confidence": 0.3421052396297455,
+    "depth_confidence": 0.2,
+    "volume_mm3": 59290.22532724068,
+    "runtime_s": 1.78
+  },
+  {
+    "case": "case_c",
+    "overall_confidence": 0.29078945368528364,
+    "in_plane_confidence": 0.3421052396297455,
+    "depth_confidence": 0.2,
+    "volume_mm3": 59290.22532724068,
+    "runtime_s": 1.24
+  }
+]

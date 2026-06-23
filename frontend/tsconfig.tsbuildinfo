@@ -1,0 +1,1 @@
+{"root":["./viewer/src/meshviewer.tsx","./viewer/src/tumormesh.tsx","./viewer/src/api.ts","./viewer/src/index.ts","./chat/app.tsx","./chat/main.tsx","./chat/components/composebar.tsx","./chat/components/messagebubble.tsx","./chat/components/messagelist.tsx","./plugin-shell/src/index.tsx","../shared/schemas/typescript/index.ts"],"version":"5.9.3"}

@@ -1,0 +1,17 @@
+---
+description: Core context for the Meddollina 3D reconstruction plugin
+alwaysApply: true
+---
+# Project: Meddollina 3D image-to-3D plugin
+
+Single 2D image → high-fidelity 3D mesh for SETV Global's Meddollina.ai platform.
+
+Pipeline: SAM 2 foreground isolation → TRELLIS.2 image-to-3D → Blender mesh cleanup → GLB export.
+
+Stack: Python 3.11, `reconstruction_3d.py` (standalone module), FastAPI adapter, React + Three.js viewer.
+
+Rules:
+- AI-generated geometry must be labeled in API responses and UI (disclaimer field).
+- Type hints are mandatory. Errors raise explicitly — never swallowed silently.
+- `/shared/schemas` is the source of truth for API contracts.
+- Inference requires NVIDIA GPU (24GB+ VRAM); develop on laptop, run pipeline on RunPod.

@@ -1,0 +1,11 @@
+.plugin-loading,
+.plugin-error {
+  margin: 0;
+  padding: 1rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+
+.plugin-error {
+  color: #b91c1c;
+}

@@ -1,0 +1,22 @@
+# GPU inference dependencies — install on RunPod / Linux GPU server only.
+# See docs/runpod-setup.md for full installation steps.
+#
+# TRELLIS.2 and SAM 2 are NOT plain pip packages; clone their repos and run
+# their setup scripts first, then pip install this file's torch line.
+
+torch>=2.6.0
+numpy>=1.26.0
+pillow>=10.4.0
+opencv-python-headless>=4.10.0
+imageio>=2.36.0
+trimesh>=4.4.0
+
+# After cloning https://github.com/facebookresearch/sam2:
+#   pip install -e /path/to/sam2
+
+# After cloning https://github.com/microsoft/TRELLIS.2 and running setup.sh:
+#   conda activate trellis2
+#   pip install -e /path/to/TRELLIS.2
+
+# System packages (apt):
+#   blender  (for Stage 3 headless export)
