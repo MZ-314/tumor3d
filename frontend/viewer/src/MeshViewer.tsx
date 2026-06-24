@@ -42,10 +42,12 @@ export function MeshViewer({
     ACCURACY_TIER_LABELS[reconstruction.accuracy_tier] ?? reconstruction.accuracy_tier;
   const useVolume =
     reconstruction.viewer_mode === "volume" && Boolean(reconstruction.volume_nifti_url);
-  const slicePreviewOnly = !useVolume && reconstruction.lesions.length === 0;
   const sliceCount = reconstruction.slice_count;
   const isAi3d =
     reconstruction.pipeline_type === "ai_3d" || reconstruction.modality === "ai_3d";
+  const showSceneMesh =
+    Boolean(reconstruction.scene_mesh_url) && (isAi3d || reconstruction.lesions.length > 0);
+  const slicePreviewOnly = !useVolume && !showSceneMesh;
   const thinVolume = !isAi3d && sliceCount < 10;
   const volumeOnly =
     reconstruction.segmentation_backend === "volume_only" ||
@@ -199,7 +201,11 @@ export function MeshViewer({
                 {slicePreviewOnly ? (
                   <SliceTexturedPlane imageUrl={sourceUrl} overlayUrl={overlayUrl} />
                 ) : (
-                  <TumorMesh meshUrl={reconstruction.scene_mesh_url} apiBase={apiBase} />
+                  <TumorMesh
+                    meshUrl={reconstruction.scene_mesh_url}
+                    apiBase={apiBase}
+                    variant={isAi3d ? "ai" : "tumor"}
+                  />
                 )}
               </Suspense>
               <OrbitControls enablePan enableZoom enableRotate />
@@ -210,7 +216,9 @@ export function MeshViewer({
           <p className="mesh-viewer__hint">
             {slicePreviewOnly
               ? "Rotate the MRI slice in 3D · scroll to zoom"
-              : "Drag to rotate · scroll to zoom"}
+              : isAi3d
+                ? "Drag to rotate the AI mesh · scroll to zoom"
+                : "Drag to rotate · scroll to zoom"}
           </p>
         )}
       </div>

@@ -7,18 +7,23 @@ import { resolveAssetUrl } from "./api";
 interface TumorMeshProps {
   meshUrl: string;
   apiBase?: string;
+  /** AI-inferred meshes keep original shading; tumor meshes are highlighted red. */
+  variant?: "tumor" | "ai";
 }
 
 function TumorMeshInner({ scene }: { scene: THREE.Group }) {
   return <primitive object={scene} />;
 }
 
-export function TumorMesh({ meshUrl, apiBase = "" }: TumorMeshProps) {
+export function TumorMesh({ meshUrl, apiBase = "", variant = "tumor" }: TumorMeshProps) {
   const url = resolveAssetUrl(meshUrl, apiBase);
-  const gltf = useLoader(GLTFLoader, url);
+  const gltf = useLoader(GLTFLoader, url, (loader) => {
+    loader.setCrossOrigin("anonymous");
+  });
   const scene = gltf.scene.clone(true);
 
   useEffect(() => {
+    if (variant === "ai") return;
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh && child.material) {
         const mat = child.material as THREE.MeshStandardMaterial;
@@ -29,7 +34,7 @@ export function TumorMesh({ meshUrl, apiBase = "" }: TumorMeshProps) {
         mat.emissiveIntensity = 0.15;
       }
     });
-  }, [scene]);
+  }, [scene, variant]);
 
   const box = new THREE.Box3().setFromObject(scene);
   const center = box.getCenter(new THREE.Vector3());
