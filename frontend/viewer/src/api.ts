@@ -8,6 +8,54 @@ import type {
 /** Set in frontend/.env — e.g. https://YOUR_POD_ID-8000.proxy.runpod.net */
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
 
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 15 * 60 * 1000;
+
+interface ReconstructJobPoll {
+  status: string;
+  job_id?: string;
+  detail?: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pollReconstructJob(
+  apiBase: string,
+  jobId: string,
+): Promise<ReconstructResponse> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+
+    let poll: Response;
+    try {
+      poll = await fetch(`${apiBase}/reconstruct/jobs/${jobId}`);
+    } catch {
+      continue;
+    }
+
+    if (!poll.ok) {
+      throw new Error(`Job status check failed (${poll.status})`);
+    }
+
+    const body = (await poll.json()) as ReconstructJobPoll & Partial<ReconstructResponse>;
+    if (body.status === "processing") {
+      continue;
+    }
+    if (body.status === "error") {
+      throw new Error(body.detail ?? "GPU processing failed");
+    }
+    return body as ReconstructResponse;
+  }
+
+  throw new Error(
+    "GPU processing timed out after 15 minutes. Check the RunPod uvicorn terminal — the job may still be running.",
+  );
+}
+
 export async function reconstructFromFiles(
   files: File[],
   options: {
@@ -26,10 +74,31 @@ export async function reconstructFromFiles(
   if (options.chatId) form.append("chat_id", options.chatId);
   if (options.text) form.append("text", options.text);
 
-  const response = await fetch(`${apiBase}/reconstruct`, {
-    method: "POST",
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase}/reconstruct`, {
+      method: "POST",
+      body: form,
+    });
+  } catch (err) {
+    const lost =
+      err instanceof TypeError &&
+      (err.message === "Failed to fetch" || err.message.includes("NetworkError"));
+    if (lost) {
+      throw new Error(
+        "Connection lost while uploading or waiting for GPU segmentation. " +
+          "22+ DICOM slices can take 3–10 minutes. Check the RunPod uvicorn terminal for progress. " +
+          "If DICOM errors mention JPEG decompression, run on the pod: " +
+          "pip install pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg",
+      );
+    }
+    throw err;
+  }
+
+  if (response.status === 202) {
+    const started = (await response.json()) as { job_id: string };
+    return pollReconstructJob(apiBase, started.job_id);
+  }
 
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ detail: response.statusText }));

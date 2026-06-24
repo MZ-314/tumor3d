@@ -22,6 +22,22 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
 
     lines: list[str] = []
 
+    if getattr(result, "pipeline_type", "medical") == "ai_3d":
+        lines.append(
+            f"Built an AI-inferred 3D mesh from your image ({result.segmentation_backend}). "
+            "This is not a CT/MRI volume — hidden surfaces are guessed by the model."
+        )
+        lines.append(
+            "Rotate the 3D model in the viewer. For real scan data (knee, brain, etc.), "
+            "switch to **DICOM volume** mode and upload a full slice series."
+        )
+        if user_text:
+            lines.insert(0, f'Re: your note — "{user_text[:120]}"')
+        lines.append("Research prototype — not for clinical or metrology use.")
+        return "\n\n".join(lines)
+
+    volume_only = result.segmentation_backend == "volume_only"
+
     if result.segmentation_backend == "stub":
         lines.append(
             "⚠ STUB DEMO MODE — not real tumor AI. The overlay and 3D shape are rough "
@@ -30,23 +46,39 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
 
     lines.extend(
         [
-            f"I analyzed {result.slice_count} slice(s) as {result.modality.replace('_', ' ')} "
-            f"using the {result.segmentation_backend} backend.",
+            f"I built a 3D volume from {result.slice_count} slice(s) ({result.modality.replace('_', ' ')}). "
+            + (
+                "Volume-only mode — no tumor/lesion AI on this scan."
+                if volume_only
+                else f"Segmentation backend: {result.segmentation_backend}."
+            ),
         ]
     )
 
     if result.viewer_mode == "volume" and result.volume_nifti_url:
-        lines.append(
-            "The 3D panel uses a real volume viewer (NiiVue): drag the crosshair to slice "
-            "through axial, coronal, and sagittal planes. "
-            + (
-                "A red tumor mask overlay is shown where segmentation found a lesion."
-                if result.tumor_mask_nifti_url
-                else "No tumor mask overlay — the scan volume is still visible in 3D."
+        target = "scan" if volume_only else "brain"
+        if result.slice_count <= 1:
+            lines.append(
+                f"Only 1 slice — the 3D panel is a single MRI sheet, not a full {target}. "
+                "Upload all DICOM slices from the same study (use the 📁 folder button)."
             )
-        )
+        elif result.slice_count < 10:
+            lines.append(
+                f"{result.slice_count} slices — partial 3D stack. "
+                "Upload more slices from the same series for a fuller volume."
+            )
+        else:
+            lines.append(
+                "Open the 3D panel (NiiVue): drag the crosshair to slice through axial, coronal, "
+                "and sagittal planes. "
+                + (
+                    "Red overlay = segmentation mask (brain tumor mode only)."
+                    if result.tumor_mask_nifti_url
+                    else "No mask overlay — your scan volume is shown in 3D."
+                )
+            )
 
-    if n == 0:
+    if n == 0 and not volume_only:
         if result.viewer_mode == "volume":
             lines.append(
                 "No whole-tumor region was detected by segmentation on this upload. "

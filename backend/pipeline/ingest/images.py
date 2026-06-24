@@ -43,8 +43,19 @@ def _load_png_array(path: Path) -> np.ndarray:
 def _load_dicom_slice(path: Path) -> _DicomSlice:
     import pydicom
 
-    ds = pydicom.dcmread(str(path))
-    arr = ds.pixel_array.astype(np.float32)
+    try:
+        ds = pydicom.dcmread(str(path))
+        arr = ds.pixel_array.astype(np.float32)
+    except Exception as exc:
+        msg = str(exc)
+        if "Unable to decompress" in msg or "plugins are missing" in msg:
+            raise ValueError(
+                "DICOM is JPEG-compressed. On RunPod install codecs, then restart uvicorn:\n"
+                "  pip install pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg\n"
+                "Or: pip install python-gdcm"
+            ) from exc
+        raise
+
     if hasattr(ds, "RescaleSlope") and hasattr(ds, "RescaleIntercept"):
         arr = arr * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
     arr = arr - arr.min()

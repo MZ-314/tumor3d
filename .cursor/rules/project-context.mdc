@@ -4,14 +4,16 @@ alwaysApply: true
 ---
 # Project: Meddollina 3D image-to-3D plugin
 
-Single 2D image → high-fidelity 3D mesh for SETV Global's Meddollina.ai platform.
+**Primary:** Single 2D image → AI 3D mesh (TripoSR on GPU) for SETV Global's Meddollina.ai platform.
 
-Pipeline: SAM 2 foreground isolation → TRELLIS.2 image-to-3D → Blender mesh cleanup → GLB export.
+**Secondary:** DICOM series → real volume viewer (NiiVue).
 
-Stack: Python 3.11, `reconstruction_3d.py` (standalone module), FastAPI adapter, React + Three.js viewer.
+**Optional:** Brain MRI tumor segmentation (MONAI BraTS) — not the core product story.
+
+Stack: Python 3.11+, FastAPI, TripoSR, React + Three.js (+ NiiVue for volumes), SQLite chat.
 
 Rules:
-- AI-generated geometry must be labeled in API responses and UI (disclaimer field).
+- AI-generated geometry must be labeled in API responses and UI (`geometry_source`, disclaimer).
 - Type hints are mandatory. Errors raise explicitly — never swallowed silently.
 - `/shared/schemas` is the source of truth for API contracts.
-- Inference requires NVIDIA GPU (24GB+ VRAM); develop on laptop, run pipeline on RunPod.
+- Inference requires NVIDIA GPU (~6GB+ VRAM for TripoSR); develop on laptop with stub, run on RunPod.

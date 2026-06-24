@@ -31,7 +31,7 @@ def test_health(client) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["pipeline"] == "medical_segmentation"
+    assert body["pipeline"] == "meddollina_3d"
     assert body["segmentation_backend"] == "stub"
 
 
@@ -70,6 +70,83 @@ def test_reconstruct_single_slice(client) -> None:
     assert body["scene_mesh_url"].endswith("_scene.glb")
     assert body["viewer_mode"] == "volume"
     assert body["volume_nifti_url"] is not None
+
+
+def test_reconstruct_multi_slice_async(client) -> None:
+    from PIL import Image
+    import io
+    import time
+
+    files = []
+    for i in range(3):
+        img = Image.new("L", (64, 64), color=30 + i * 5)
+        for y in range(28, 36):
+            for x in range(28, 36):
+                img.putpixel((x, y), 200)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        files.append(("images", (f"slice{i}.png", buf.getvalue(), "image/png")))
+
+    r = client.post("/reconstruct", files=files, data={"modality": "brain_mri"})
+    assert r.status_code == 202, r.text
+    job_id = r.json()["job_id"]
+
+    deadline = time.time() + 60
+    body = None
+    while time.time() < deadline:
+        poll = client.get(f"/reconstruct/jobs/{job_id}")
+        assert poll.status_code == 200
+        data = poll.json()
+        if data.get("status") == "processing":
+            time.sleep(0.5)
+            continue
+        if data.get("status") == "error":
+            pytest.fail(data.get("detail", "job failed"))
+        body = data
+        break
+
+    assert body is not None
+    assert body["slice_count"] == 3
+    assert body["viewer_mode"] == "volume"
+
+
+def test_reconstruct_knee_volume_only(client) -> None:
+    from PIL import Image
+    import io
+
+    img = Image.new("L", (96, 96), color=50)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    r = client.post(
+        "/reconstruct",
+        files=[("images", ("knee.png", buf.read(), "image/png"))],
+        data={"modality": "volume_mri"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["segmentation_backend"] == "volume_only"
+    assert body["lesions"] == []
+    assert "Volume-only" in body["disclaimer"]
+
+
+@pytest.mark.asyncio
+async def test_ai_3d_pipeline_direct(tmp_path: Path) -> None:
+    from PIL import Image
+
+    work = tmp_path / "ai1"
+    work.mkdir()
+    img_path = work / "photo.png"
+    Image.new("RGB", (64, 64), color=(100, 150, 200)).save(img_path)
+
+    from image_to_3d_pipeline import process_image_to_3d
+
+    result = await process_image_to_3d(img_path, work)
+    assert result.pipeline_type == "ai_3d"
+    assert result.geometry_source == "ai_generated"
+    assert result.viewer_mode == "mesh"
+    assert (work / f"{work.name}_scene.glb").exists()
 
 
 @pytest.mark.asyncio

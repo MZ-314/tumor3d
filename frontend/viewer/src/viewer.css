@@ -8,6 +8,46 @@
   border: 1px solid #1e293b;
 }
 
+.mesh-viewer--chat {
+  grid-template-columns: 1fr;
+  padding: 0;
+  border: none;
+  background: transparent;
+  gap: 0.5rem;
+}
+
+.volume-depth-banner {
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
+  color: #dbeafe;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.volume-depth-banner--critical {
+  background: #450a0a;
+  border-color: #dc2626;
+  color: #fecaca;
+}
+
+.volume-depth-banner strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.volume-depth-banner--ai {
+  background: #3b0764;
+  border-color: #a855f7;
+  color: #f3e8ff;
+}
+
+.volume-depth-banner p {
+  margin: 0;
+}
+
 .mesh-viewer--compact {
   grid-template-columns: 1fr;
 }
@@ -20,6 +60,11 @@
   background: radial-gradient(circle at 30% 30%, #1e293b, #020617);
 }
 
+.mesh-viewer--chat .mesh-viewer__canvas-wrap {
+  min-height: min(65vh, 720px);
+  border: 1px solid #1e293b;
+}
+
 .mesh-viewer--compact .mesh-viewer__canvas-wrap {
   min-height: 240px;
 }
@@ -27,6 +72,10 @@
 .mesh-viewer__canvas-wrap canvas {
   width: 100% !important;
   height: 280px !important;
+}
+
+.mesh-viewer--chat .mesh-viewer__canvas-wrap canvas {
+  height: min(65vh, 720px) !important;
 }
 
 .mesh-viewer__hint {
@@ -45,6 +94,36 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.mesh-viewer__meta-details {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.mesh-viewer__meta-details summary {
+  cursor: pointer;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  list-style: none;
+  user-select: none;
+}
+
+.mesh-viewer__meta-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.mesh-viewer__meta-details[open] summary {
+  border-bottom: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+.mesh-viewer__meta-details .mesh-viewer__meta {
+  padding: 0.75rem;
 }
 
 .mesh-viewer__thumbnail {

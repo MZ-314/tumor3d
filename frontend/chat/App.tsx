@@ -8,7 +8,7 @@ import {
   reconstructFromFiles,
 } from "@viewer/api";
 import { MessageList } from "./components/MessageList";
-import { ComposeBar } from "./components/ComposeBar";
+import { ComposeBar, type ScanModality } from "./components/ComposeBar";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { StubBanner } from "./components/StubBanner";
 
@@ -16,9 +16,9 @@ const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
   text:
-    "Upload brain MRI/CT slices (DICOM preferred). Real tumor segmentation requires MONAI on RunPod — " +
-    "if you see the orange banner, you're in stub demo mode (UI test only, not clinical). " +
-    "More axial slices improve depth (Z).",
+    "**Core:** upload **one photo** → **AI 3D mesh** (TripoSR on RunPod). " +
+    "**Also:** **DICOM volume** for real MRI/CT stacks (knee, brain, etc.) in the volume viewer. " +
+    "**Optional:** **Brain + tumor AI** for MONAI segmentation. Pick the mode in the dropdown before sending.",
 };
 
 function uid(): string {
@@ -75,7 +75,7 @@ export function App() {
   }, []);
 
   const handleSend = useCallback(
-    async (files: File[], text?: string) => {
+    async (files: File[], text?: string, modality: ScanModality = "ai_3d") => {
       setBusy(true);
 
       let chatId = activeChatId;
@@ -106,11 +106,14 @@ export function App() {
       };
 
       const loadingId = uid();
+      const analysisStartedAt = Date.now();
       const loadingMsg: ChatMessage = {
         id: loadingId,
         role: "assistant",
         loading: true,
-        text: `Segmenting ${files.length} slice(s) and building lesion meshes…`,
+        analysisSliceCount: files.length,
+        analysisStartedAt,
+        analysisMode: modality,
       };
 
       setMessages((prev) => [...prev.filter((m) => m.id !== "welcome"), userMsg, loadingMsg]);
@@ -120,7 +123,7 @@ export function App() {
         const reconstruction = await reconstructFromFiles(files, {
           chatId,
           text,
-          modality: "brain_mri",
+          modality,
         });
         const assistantMsg: ChatMessage = {
           id: loadingId,

@@ -2,6 +2,7 @@ import type { ChatMessage } from "@shared/index";
 import { API_BASE, resolveAssetUrl } from "@viewer/api";
 import { MeshViewer } from "@viewer/MeshViewer";
 import { ViewerErrorBoundary } from "@viewer/ViewerErrorBoundary";
+import { AnalysisProgress } from "./AnalysisProgress";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -17,19 +18,27 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   return (
     <div className={`bubble-row bubble-row--${message.role}`}>
-      <div className={`bubble bubble--${message.role}`}>
+      <div
+        className={`bubble bubble--${message.role}${message.reconstruction ? " bubble--has-viewer" : ""}`}
+      >
         {!isUser && <span className="bubble__avatar">AI</span>}
 
         <div className="bubble__content">
           {message.text && <p className="bubble__text">{message.text}</p>}
 
-          {message.loading && (
+          {message.loading && message.analysisStartedAt != null && message.analysisSliceCount != null ? (
+            <AnalysisProgress
+              sliceCount={message.analysisSliceCount}
+              startedAt={message.analysisStartedAt}
+              mode={message.analysisMode}
+            />
+          ) : message.loading ? (
             <div className="bubble__spinner" aria-label="Loading">
               <span />
               <span />
               <span />
             </div>
-          )}
+          ) : null}
 
           {message.attachmentUrl && (
             <figure className="bubble__attachment">
@@ -43,7 +52,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {message.reconstruction && (
             <div className="bubble__viewer">
               <ViewerErrorBoundary>
-                <MeshViewer reconstruction={message.reconstruction} apiBase={API_BASE} compact />
+                <MeshViewer reconstruction={message.reconstruction} apiBase={API_BASE} variant="chat" />
               </ViewerErrorBoundary>
             </div>
           )}

@@ -11,6 +11,12 @@ pip install huggingface_hub
 python scripts/setup_monai_bundle.py
 ```
 
+`dicom` extras include **pylibjpeg** for JPEG-compressed DICOM (common in hospital exports). If you already installed before, run:
+
+```bash
+pip install pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
+```
+
 ## 2. Start API with MONAI (not stub)
 
 ```bash
@@ -32,6 +38,7 @@ If it says `"stub"` you forgot `export SEGMENTATION_BACKEND=monai`.
 
 ## Notes
 
+- **3+ slices** upload returns immediately (`202`) and processes on GPU in the background; the chat UI polls until done (avoids RunPod proxy timeout).
 - **Stub is not tumor AI** — only for UI tests without GPU.
 - BraTS model expects brain MRI; best with **DICOM** or several axial slices.
 - Single JPEG works as a fallback (one channel repeated 4×) but quality is limited.

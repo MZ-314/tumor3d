@@ -35,6 +35,8 @@ class ReconstructResponse(BaseModel):
     tumor_mask_nifti_url: str | None = None
     viewer_mode: str = "volume"
     mesh_format: str = "glb"
+    pipeline_type: str = "medical"
+    geometry_source: str = "measured"
     slice_count: int = Field(..., ge=1)
     accuracy_tier: AccuracyTier
     modality: str

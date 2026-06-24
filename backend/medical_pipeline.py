@@ -13,7 +13,7 @@ from pipeline.export.nifti_export import combined_lesion_mask, save_mask_nifti, 
 from pipeline.ingest.images import load_slice_volume, save_png_overlay
 from pipeline.mesh.lesion_mesh import build_lesion_geometries, get_scene_path
 from pipeline.mesh.slice_preview import build_slice_preview_scene
-from pipeline.segment.backends import segment_volume
+from pipeline.segment.backends import VOLUME_ONLY_MODALITIES, segment_volume
 from services.groq_assistant import build_assistant_summary
 from shared.schemas.pydantic.common import AccuracyTier
 from shared.schemas.pydantic.reconstruct import LesionResult, ReconstructResponse
@@ -108,27 +108,52 @@ async def process_medical_slices(
         )
 
     no_lesion = len(seg.lesions) == 0
+    volume_only = modality.lower() in VOLUME_ONLY_MODALITIES
+    effective_backend = "volume_only" if volume_only else backend
+
     stub_disclaimer = (
         "STUB DEMO MODE: this is not real tumor detection. "
         "Bright-region heuristics only — unsuitable for clinical MRI. "
         "On RunPod set SEGMENTATION_BACKEND=monai for trained segmentation."
     )
-    disclaimer = (
-        stub_disclaimer
-        if backend == "stub"
-        else (
-            "MONAI found no whole-tumor region on this upload. Showing a 3D slice preview only — "
-            "no tumor coordinates. Try DICOM T1c or more axial slices with visible enhancing tumor. "
+    if volume_only:
+        disclaimer = (
+            "Volume-only mode: building a 3D stack from your DICOM slices. "
+            "No tumor/lesion AI — MONAI BraTS is trained on brain MRI only. "
             "Not for diagnosis."
-            if no_lesion
+        )
+    else:
+        disclaimer = (
+            stub_disclaimer
+            if backend == "stub"
             else (
-                "Tumor location on the slice is model-inferred. Depth and volume improve with "
-                "more slices. Not for diagnosis."
+                "MONAI found no whole-tumor region on this upload. "
+                "Try brain DICOM T1c or more axial slices with visible enhancing tumor. "
+                "Not for diagnosis."
+                if no_lesion
+                else (
+                    "Tumor location is model-inferred (brain MRI). Depth improves with "
+                    "more slices. Not for diagnosis."
+                )
             )
         )
-    )
 
     tier = _accuracy_tier(volume.data.shape[0])
+    z_count = volume.data.shape[0]
+    anatomy = "joint" if volume_only else "volume"
+    if z_count <= 1:
+        volume_disclaimer = (
+            f"Only 1 slice uploaded: the 3D viewer shows that single MRI sheet, not a full {anatomy}. "
+            "Upload a full DICOM series from the same study."
+        )
+    elif z_count < 10:
+        volume_disclaimer = (
+            f"Only {z_count} slices uploaded: partial 3D stack. "
+            "Upload more axial DICOM from the same study for a fuller volume."
+        )
+    else:
+        volume_disclaimer = None
+
     response = ReconstructResponse(
         reconstruction_id=reconstruction_id,
         chat_id=chat_id,
@@ -143,10 +168,12 @@ async def process_medical_slices(
         slice_count=volume.data.shape[0],
         accuracy_tier=tier,
         modality=modality,
-        segmentation_backend=backend,
+        pipeline_type="medical",
+        geometry_source="measured",
+        segmentation_backend=effective_backend,
         lesions=lesion_results,
         assistant_summary="",
-        disclaimer=disclaimer,
+        disclaimer=disclaimer if volume_disclaimer is None else f"{disclaimer} {volume_disclaimer}",
     )
 
     response.assistant_summary = await build_assistant_summary(

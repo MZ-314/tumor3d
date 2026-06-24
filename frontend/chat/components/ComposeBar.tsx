@@ -1,7 +1,9 @@
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 
+export type ScanModality = "ai_3d" | "volume_mri" | "brain_mri";
+
 interface ComposeBarProps {
-  onSend: (files: File[], text?: string) => void;
+  onSend: (files: File[], text?: string, modality?: ScanModality) => void;
   disabled?: boolean;
 }
 
@@ -27,11 +29,22 @@ function isValidFile(file: File): boolean {
   return IMAGE_EXTENSIONS.has(n.slice(dot));
 }
 
+function isDicomFile(file: File): boolean {
+  const n = file.name.toLowerCase();
+  return n.endsWith(".dcm") || n.endsWith(".dicom");
+}
+
+function filterDicom(files: File[]): File[] {
+  return files.filter(isDicomFile);
+}
+
 export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
   const [text, setText] = useState("");
+  const [modality, setModality] = useState<ScanModality>("ai_3d");
   const [dragOver, setDragOver] = useState(false);
   const [picked, setPicked] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
 
   const submitFiles = (files: File[]) => {
     const valid = files.filter(isValidFile);
@@ -39,10 +52,21 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
       alert("Please upload PNG, JPEG, WebP, or DICOM slices.");
       return;
     }
-    onSend(valid, text.trim() || undefined);
+    if (modality === "ai_3d" && valid.length !== 1) {
+      alert("AI 3D mode uses one image. Switch to DICOM volume for multiple slices.");
+      return;
+    }
+    if (modality !== "ai_3d" && valid.length === 1 && !isDicomFile(valid[0])) {
+      const ok = window.confirm(
+        "Single photo detected. Use AI 3D mode for one image, or OK to continue as a 1-slice volume.",
+      );
+      if (!ok) return;
+    }
+    onSend(valid, text.trim() || undefined, modality);
     setText("");
     setPicked([]);
     if (fileRef.current) fileRef.current.value = "";
+    if (folderRef.current) folderRef.current.value = "";
   };
 
   const onSubmit = (e: FormEvent) => {
@@ -50,7 +74,7 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
     const fromInput = fileRef.current?.files ? Array.from(fileRef.current.files) : [];
     const files = picked.length ? picked : fromInput;
     if (!files.length) {
-      alert("Attach at least one slice.");
+      alert("Attach an image or DICOM series.");
       return;
     }
     submitFiles(files);
@@ -71,6 +95,20 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
     setPicked(files);
   };
 
+  const onFolderChange = () => {
+    const all = folderRef.current?.files ? Array.from(folderRef.current.files) : [];
+    const dicoms = filterDicom(all);
+    if (!dicoms.length) {
+      alert("No .dcm files found in that folder.");
+      return;
+    }
+    setModality("volume_mri");
+    setPicked(dicoms);
+    submitFiles(dicoms);
+  };
+
+  const showFolder = modality !== "ai_3d";
+
   return (
     <form
       className={`compose ${dragOver ? "compose--drag" : ""}`}
@@ -86,19 +124,58 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
         ref={fileRef}
         type="file"
         accept={ACCEPT}
-        multiple
+        multiple={modality !== "ai_3d"}
         className="compose__file"
         id="scan-file"
         disabled={disabled}
         onChange={onFileChange}
       />
-      <label htmlFor="scan-file" className="compose__attach" title="Attach slice(s)">
+      <input
+        ref={folderRef}
+        type="file"
+        multiple
+        className="compose__file"
+        id="scan-folder"
+        disabled={disabled}
+        onChange={onFolderChange}
+        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+      />
+      <label htmlFor="scan-file" className="compose__attach" title="Attach image or slices">
         📎
       </label>
+      {showFolder && (
+        <button
+          type="button"
+          className="compose__folder"
+          disabled={disabled}
+          title="Upload entire DICOM folder"
+          onClick={() => folderRef.current?.click()}
+        >
+          📁
+        </button>
+      )}
+      <select
+        className="compose__modality"
+        value={modality}
+        disabled={disabled}
+        onChange={(e) => setModality(e.target.value as ScanModality)}
+        title="Reconstruction mode"
+        aria-label="Reconstruction mode"
+      >
+        <option value="ai_3d">AI 3D (1 photo)</option>
+        <option value="volume_mri">DICOM volume</option>
+        <option value="brain_mri">Brain + tumor AI</option>
+      </select>
       <input
         type="text"
         className="compose__input"
-        placeholder="Upload DICOM or axial slices (more = better 3D)…"
+        placeholder={
+          modality === "ai_3d"
+            ? "Upload one photo → AI builds a 3D mesh…"
+            : modality === "volume_mri"
+              ? "DICOM series: 📁 folder or many .dcm files…"
+              : "Brain DICOM + MONAI tumor segmentation…"
+        }
         value={text}
         onChange={(e) => setText(e.target.value)}
         disabled={disabled}
@@ -110,7 +187,7 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
         type="submit"
         className="compose__send"
         disabled={disabled || picked.length === 0}
-        title={picked.length === 0 ? "Attach a slice first" : disabled ? "Processing…" : "Send"}
+        title={picked.length === 0 ? "Attach files first" : disabled ? "Processing…" : "Send"}
       >
         {disabled ? "Processing…" : "Send"}
       </button>

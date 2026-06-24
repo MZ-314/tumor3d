@@ -23,12 +23,19 @@ class SegmentationResult:
     global_confidence: float
 
 
+VOLUME_ONLY_MODALITIES = frozenset({"knee_mri", "volume_mri", "other_mri", "volume_only"})
+
+
 def segment_volume(
     volume: np.ndarray,
     backend: str,
     *,
     modality: str = "brain_mri",
 ) -> SegmentationResult:
+    modality = modality.lower()
+    if modality in VOLUME_ONLY_MODALITIES:
+        return SegmentationResult(lesions=[], global_confidence=0.0)
+
     backend = backend.lower()
     if backend == "stub":
         return _segment_stub(volume, modality=modality)

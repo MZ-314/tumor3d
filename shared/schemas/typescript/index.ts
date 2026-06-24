@@ -50,6 +50,8 @@ export interface ReconstructResponse {
     volume_nifti_url?: string | null;
     tumor_mask_nifti_url?: string | null;
     viewer_mode?: string;
+    pipeline_type?: string;
+    geometry_source?: string;
     mesh_format: string;
   slice_count: number;
   accuracy_tier: AccuracyTier;
@@ -95,4 +97,8 @@ export interface ChatMessage {
   reconstruction?: ReconstructResponse;
   loading?: boolean;
   error?: string;
+  /** Set while waiting on /reconstruct */
+  analysisSliceCount?: number;
+  analysisStartedAt?: number;
+  analysisMode?: string;
 }
