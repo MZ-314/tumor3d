@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { API_BASE, fetchHealth } from "@viewer/api";
+import { fetchHealth } from "@viewer/api";
 
 export function StubBanner() {
   const [backend, setBackend] = useState<string | null>(null);

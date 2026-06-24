@@ -22,8 +22,11 @@ export function TumorMesh({ meshUrl, apiBase = "" }: TumorMeshProps) {
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh && child.material) {
         const mat = child.material as THREE.MeshStandardMaterial;
-        mat.metalness = 0.1;
-        mat.roughness = 0.65;
+        mat.metalness = 0.05;
+        mat.roughness = 0.55;
+        mat.color = new THREE.Color("#e85d5d");
+        mat.emissive = new THREE.Color("#4a1010");
+        mat.emissiveIntensity = 0.15;
       }
     });
   }, [scene]);

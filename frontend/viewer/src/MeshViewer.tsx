@@ -3,6 +3,7 @@ import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { Suspense } from "react";
 import type { ReconstructResponse } from "@shared/index";
 import { ACCURACY_TIER_LABELS, API_BASE, resolveAssetUrl } from "./api";
+import { SliceTexturedPlane } from "./SliceTexturedPlane";
 import { TumorMesh } from "./TumorMesh";
 import "./viewer.css";
 
@@ -28,6 +29,7 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
     : null;
   const tierLabel =
     ACCURACY_TIER_LABELS[reconstruction.accuracy_tier] ?? reconstruction.accuracy_tier;
+  const slicePreviewOnly = reconstruction.lesions.length === 0;
 
   return (
     <div className={`mesh-viewer ${compact ? "mesh-viewer--compact" : ""}`}>
@@ -38,11 +40,19 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
           <directionalLight position={[4, 6, 8]} intensity={1.1} />
           <directionalLight position={[-3, -2, -4]} intensity={0.35} />
           <Suspense fallback={<LoadingFallback />}>
-            <TumorMesh meshUrl={reconstruction.scene_mesh_url} apiBase={apiBase} />
+            {slicePreviewOnly ? (
+              <SliceTexturedPlane imageUrl={sourceUrl} overlayUrl={overlayUrl} />
+            ) : (
+              <TumorMesh meshUrl={reconstruction.scene_mesh_url} apiBase={apiBase} />
+            )}
           </Suspense>
           <OrbitControls enablePan enableZoom enableRotate />
         </Canvas>
-        <p className="mesh-viewer__hint">Drag to rotate · scroll to zoom</p>
+        <p className="mesh-viewer__hint">
+          {slicePreviewOnly
+            ? "Rotate the MRI slice in 3D · scroll to zoom"
+            : "Drag to rotate · scroll to zoom"}
+        </p>
       </div>
 
       <div className="mesh-viewer__meta">
@@ -75,7 +85,7 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
         <ul className="mesh-viewer__lesions">
           {reconstruction.lesions.length === 0 && (
             <li className="mesh-viewer__no-lesion">
-              No tumor region detected — 3D preview is the imaging slab only.
+              No tumor region detected — 3D view shows your uploaded MRI slice (not a fake tumor).
             </li>
           )}
           {reconstruction.lesions.map((lesion, i) => {
