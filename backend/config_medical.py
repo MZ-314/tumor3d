@@ -20,8 +20,8 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_PIXEL_SPACING_MM = float(os.environ.get("DEFAULT_PIXEL_SPACING_MM", "1.0"))
 DEFAULT_SLICE_THICKNESS_MM = float(os.environ.get("DEFAULT_SLICE_THICKNESS_MM", "5.0"))
 
-# Single-slice depth estimate: extrude lesion mask by this many voxels.
-SINGLE_SLICE_DEPTH_VOXELS = int(os.environ.get("SINGLE_SLICE_DEPTH_VOXELS", "8"))
+# Single-slice depth estimate: thin slab (not a thick fake 3D tumor).
+SINGLE_SLICE_DEPTH_VOXELS = int(os.environ.get("SINGLE_SLICE_DEPTH_VOXELS", "2"))
 
 MONAI_BUNDLE_DIR = os.environ.get("MONAI_BUNDLE_DIR", "")
 

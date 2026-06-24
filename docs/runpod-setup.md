@@ -1,6 +1,6 @@
 # RunPod setup — MONAI medical segmentation
 
-**New pod?** Start with [`runpod-first-steps.md`](runpod-first-steps.md) (web terminal, port 8000, laptop `.env`).
+**New pod?** Start with [`runpod-first-steps.md`](runpod-first-steps.md). **Enable real MRI segmentation:** [`runpod-monai-enable.md`](runpod-monai-enable.md).
 
 Use this guide to run **real** brain tumor segmentation on a RunPod GPU. Laptops and Macs should use `SEGMENTATION_BACKEND=stub` for UI development only.
 
@@ -24,15 +24,14 @@ pip install -e ".[dev,gpu,dicom]"
 
 ### MONAI bundle
 
-Download or configure a BraTS-style segmentation bundle (example paths vary by bundle):
+See **[`runpod-monai-enable.md`](runpod-monai-enable.md)** for copy/paste commands.
 
 ```bash
-# Example — follow your bundle's README for exact download commands
-mkdir -p /workspace/monai_bundle
-# monai bundle download ... into /workspace/monai_bundle
+python backend/scripts/setup_monai_bundle.py
+export SEGMENTATION_BACKEND=monai
 ```
 
-Set `MONAI_BUNDLE_DIR` to the directory containing the bundle `configs/` and weights.
+Optional: `export MONAI_BUNDLE_DIR=/workspace/tumor3d/data/monai_bundle/brats_mri_segmentation`
 
 ## Environment variables
 

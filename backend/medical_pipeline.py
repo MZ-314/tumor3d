@@ -40,7 +40,7 @@ async def process_medical_slices(
 
     try:
         volume = load_slice_volume(slice_paths)
-        seg = segment_volume(volume.data, backend)
+        seg = segment_volume(volume.data, backend, modality=modality)
         geometries = build_lesion_geometries(
             volume, seg.lesions, work_dir, reconstruction_id
         )
@@ -83,6 +83,20 @@ async def process_medical_slices(
             )
         )
 
+    stub_disclaimer = (
+        "STUB DEMO MODE: this is not real tumor detection. "
+        "Bright-region heuristics only — unsuitable for clinical MRI. "
+        "On RunPod set SEGMENTATION_BACKEND=monai for trained segmentation."
+    )
+    disclaimer = (
+        stub_disclaimer
+        if backend == "stub"
+        else (
+            "Tumor location on the slice is model-inferred. Depth and volume improve with "
+            "more slices. Not for diagnosis."
+        )
+    )
+
     tier = _accuracy_tier(volume.data.shape[0])
     response = ReconstructResponse(
         reconstruction_id=reconstruction_id,
@@ -98,10 +112,7 @@ async def process_medical_slices(
         segmentation_backend=backend,
         lesions=lesion_results,
         assistant_summary="",
-        disclaimer=(
-            "Tumor location on the slice is model-inferred. Depth and volume improve with "
-            "more slices. Not for diagnosis."
-        ),
+        disclaimer=disclaimer,
     )
 
     response.assistant_summary = await build_assistant_summary(

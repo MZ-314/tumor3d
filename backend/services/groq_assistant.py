@@ -20,11 +20,21 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
     }
     tier = tier_labels.get(result.accuracy_tier.value, result.accuracy_tier.value)
 
-    lines = [
-        f"I analyzed {result.slice_count} slice(s) as {result.modality.replace('_', ' ')} "
-        f"using the {result.segmentation_backend} backend.",
-        f"Found {n} candidate {lesion_word} ({tier}).",
-    ]
+    lines: list[str] = []
+
+    if result.segmentation_backend == "stub":
+        lines.append(
+            "⚠ STUB DEMO MODE — not real tumor AI. The overlay and 3D shape are rough "
+            "heuristics for testing the UI only. Configure MONAI on RunPod for real brain MRI."
+        )
+
+    lines.extend(
+        [
+            f"I analyzed {result.slice_count} slice(s) as {result.modality.replace('_', ' ')} "
+            f"using the {result.segmentation_backend} backend.",
+            f"Found {n} candidate {lesion_word} ({tier}).",
+        ]
+    )
 
     for i, lesion in enumerate(result.lesions, start=1):
         c = lesion.centroid_mm

@@ -215,6 +215,7 @@ body {
   padding: 0.35rem;
   border-radius: 8px;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .compose__attach:hover {
@@ -247,6 +248,8 @@ body {
   font-size: 0.85rem;
   cursor: pointer;
   font-family: inherit;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .compose__send:disabled {
@@ -370,4 +373,22 @@ body {
   font-size: 0.75rem;
   color: #94a3b8;
   white-space: nowrap;
+}
+
+.stub-banner {
+  margin: 0 1rem;
+  padding: 0.65rem 0.85rem;
+  background: #422006;
+  border: 1px solid #ea580c;
+  border-radius: 8px;
+  color: #fed7aa;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.stub-banner code {
+  background: #1c1917;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
 }

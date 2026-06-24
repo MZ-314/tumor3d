@@ -4,13 +4,15 @@ import path from "path";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
-  const proxyTarget = env.VITE_API_PROXY_TARGET || "http://127.0.0.1:8000";
+  const proxyTarget =
+    env.VITE_API_PROXY_TARGET || env.VITE_API_BASE || "http://127.0.0.1:8000";
 
   const apiRoutes = ["/static", "/reconstruct", "/health", "/meshes", "/chats"];
 
   return {
     plugins: [react()],
     root: "chat",
+    envDir: path.resolve(__dirname),
     publicDir: "../public",
     resolve: {
       alias: {

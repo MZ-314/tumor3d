@@ -28,19 +28,19 @@ Open that URL + `/health` in your browser.
 
 ---
 
-## On the pod (web terminal) — copy/paste
+## On the pod (web terminal) — real tumor AI (MONAI)
+
+**Do not use `stub` on RunPod for brain scans** — stub is fake. See [`runpod-monai-enable.md`](runpod-monai-enable.md).
 
 ```bash
 git clone https://github.com/MZ-314/tumor3d.git /workspace/tumor3d
 cd /workspace/tumor3d/backend
 pip install -e ".[dev,gpu,dicom]"
+python scripts/setup_monai_bundle.py
 
-export SEGMENTATION_BACKEND=stub
+export SEGMENTATION_BACKEND=monai
 export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
 export DATA_DIR=/workspace/tumor3d/data
-
-# Optional — set in shell only, never commit to git
-# export GROQ_API_KEY=gsk_your_key_here
 
 cd /workspace/tumor3d
 uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
@@ -51,6 +51,8 @@ Leave that terminal running. In a **second** web terminal tab:
 ```bash
 curl http://127.0.0.1:8000/health
 ```
+
+Must show `"segmentation_backend": "monai"`.
 
 ---
 
@@ -84,13 +86,12 @@ Open http://localhost:5173 and upload a test slice.
 
 ---
 
-## Next: real segmentation
-
-See [`runpod-setup.md`](runpod-setup.md) for MONAI bundle setup, then:
+## Stub (laptop only — not for real MRI)
 
 ```bash
-export SEGMENTATION_BACKEND=monai
-export MONAI_BUNDLE_DIR=/workspace/monai_bundle
+export SEGMENTATION_BACKEND=stub
 ```
 
-Restart `uvicorn`.
+Only for testing the chat UI without a GPU.
+
+---

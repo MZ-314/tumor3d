@@ -97,3 +97,15 @@ export const ACCURACY_TIER_LABELS: Record<string, string> = {
   partial_volume: "Partial volume — improving Z",
   multi_slice: "Multi-slice — better depth",
 };
+
+export interface HealthResponse {
+  status: string;
+  pipeline: string;
+  segmentation_backend: string;
+}
+
+export async function fetchHealth(apiBase: string = API_BASE): Promise<HealthResponse> {
+  const r = await fetch(`${apiBase}/health`);
+  if (!r.ok) throw new Error("Health check failed");
+  return r.json() as Promise<HealthResponse>;
+}

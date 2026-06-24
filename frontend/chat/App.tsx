@@ -10,12 +10,15 @@ import {
 import { MessageList } from "./components/MessageList";
 import { ComposeBar } from "./components/ComposeBar";
 import { ChatSidebar } from "./components/ChatSidebar";
+import { StubBanner } from "./components/StubBanner";
 
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
   text:
-    "Upload one or more brain MRI/CT slices. I'll estimate tumor location, show a rotatable 3D model, and report coordinates. More slices improve depth (Z). Research prototype — not for diagnosis.",
+    "Upload brain MRI/CT slices (DICOM preferred). Real tumor segmentation requires MONAI on RunPod — " +
+    "if you see the orange banner, you're in stub demo mode (UI test only, not clinical). " +
+    "More axial slices improve depth (Z).",
 };
 
 function uid(): string {
@@ -73,12 +76,23 @@ export function App() {
 
   const handleSend = useCallback(
     async (files: File[], text?: string) => {
+      setBusy(true);
+
       let chatId = activeChatId;
-      if (!chatId) {
-        const chat = await createChat();
-        chatId = chat.id;
-        setActiveChatId(chatId);
-        setChats((prev) => [chat, ...prev]);
+      try {
+        if (!chatId) {
+          const chat = await createChat();
+          chatId = chat.id;
+          setActiveChatId(chatId);
+          setChats((prev) => [chat, ...prev]);
+        }
+      } catch (err) {
+        setBusy(false);
+        const message = err instanceof Error ? err.message : "Could not reach API";
+        alert(
+          `Cannot connect to the API. Check that RunPod is running and VITE_API_BASE in frontend/.env is correct.\n\n${message}`,
+        );
+        return;
       }
 
       const previewUrl = URL.createObjectURL(files[0]);
@@ -100,7 +114,6 @@ export function App() {
       };
 
       setMessages((prev) => [...prev.filter((m) => m.id !== "welcome"), userMsg, loadingMsg]);
-      setBusy(true);
       scrollToBottom();
 
       try {
@@ -150,11 +163,13 @@ export function App() {
           <div>
             <h1>Meddollina Medical Chat</h1>
             <p className="app__subtitle">
-              Tumor localization · 1–N slices · stub on CPU, MONAI on GPU
+              Tumor localization · 1–N slices · MONAI on GPU for real MRI
             </p>
           </div>
           <span className="app__badge">Prototype</span>
         </header>
+
+        <StubBanner />
 
         <main className="app__main" ref={listRef}>
           <MessageList messages={messages} />

@@ -1,8 +1,15 @@
 import type { ChatMessage } from "@shared/index";
+import { API_BASE, resolveAssetUrl } from "@viewer/api";
 import { MeshViewer } from "@viewer/MeshViewer";
+import { ViewerErrorBoundary } from "@viewer/ViewerErrorBoundary";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+}
+
+function attachmentSrc(url: string): string {
+  if (url.startsWith("blob:") || url.startsWith("http")) return url;
+  return resolveAssetUrl(url, API_BASE);
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
@@ -26,7 +33,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
           {message.attachmentUrl && (
             <figure className="bubble__attachment">
-              <img src={message.attachmentUrl} alt={message.attachmentName ?? "Scan"} />
+              <img src={attachmentSrc(message.attachmentUrl)} alt={message.attachmentName ?? "Scan"} />
               {message.attachmentName && (
                 <figcaption>{message.attachmentName}</figcaption>
               )}
@@ -35,7 +42,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
           {message.reconstruction && (
             <div className="bubble__viewer">
-              <MeshViewer reconstruction={message.reconstruction} compact />
+              <ViewerErrorBoundary>
+                <MeshViewer reconstruction={message.reconstruction} apiBase={API_BASE} compact />
+              </ViewerErrorBoundary>
             </div>
           )}
 

@@ -5,12 +5,26 @@ interface ComposeBarProps {
   disabled?: boolean;
 }
 
-const ACCEPT = "image/*,.dcm,.dicom";
+const ACCEPT = "image/*,.dcm,.dicom,.jpg,.jpeg,.png,.webp";
+
+const IMAGE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".bmp",
+  ".tif",
+  ".tiff",
+]);
 
 function isValidFile(file: File): boolean {
   if (file.type.startsWith("image/")) return true;
   const n = file.name.toLowerCase();
-  return n.endsWith(".dcm") || n.endsWith(".dicom");
+  if (n.endsWith(".dcm") || n.endsWith(".dicom")) return true;
+  const dot = n.lastIndexOf(".");
+  if (dot === -1) return false;
+  return IMAGE_EXTENSIONS.has(n.slice(dot));
 }
 
 export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
@@ -92,8 +106,13 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
       {picked.length > 0 && (
         <span className="compose__count">{picked.length} file(s)</span>
       )}
-      <button type="submit" className="compose__send" disabled={disabled}>
-        Send
+      <button
+        type="submit"
+        className="compose__send"
+        disabled={disabled || picked.length === 0}
+        title={picked.length === 0 ? "Attach a slice first" : disabled ? "Processing…" : "Send"}
+      >
+        {disabled ? "Processing…" : "Send"}
       </button>
     </form>
   );

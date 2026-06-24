@@ -55,6 +55,16 @@
   background: #000;
 }
 
+.mesh-viewer__thumbnail--overlay {
+  border-color: #ea580c;
+}
+.mesh-viewer__overlay-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.7rem;
+  color: #fb923c;
+  font-weight: 600;
+}
+
 .mesh-viewer__stats {
   display: grid;
   gap: 0.35rem;
@@ -101,6 +111,17 @@
 .mesh-viewer__vol {
   font-size: 0.68rem;
   color: #94a3b8;
+}
+
+.mesh-viewer__error {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.75rem;
+  background: #450a0a;
+  border: 1px solid #991b1b;
+  border-radius: 8px;
+  color: #fecaca;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 @media (max-width: 640px) {

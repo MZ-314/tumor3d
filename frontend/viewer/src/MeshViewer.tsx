@@ -2,7 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { Suspense } from "react";
 import type { ReconstructResponse } from "@shared/index";
-import { ACCURACY_TIER_LABELS, resolveAssetUrl } from "./api";
+import { ACCURACY_TIER_LABELS, API_BASE, resolveAssetUrl } from "./api";
 import { TumorMesh } from "./TumorMesh";
 import "./viewer.css";
 
@@ -21,7 +21,7 @@ function LoadingFallback() {
   );
 }
 
-export function MeshViewer({ reconstruction, apiBase = "", compact = false }: MeshViewerProps) {
+export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false }: MeshViewerProps) {
   const sourceUrl = resolveAssetUrl(reconstruction.source_image_url, apiBase);
   const overlayUrl = reconstruction.overlay_image_url
     ? resolveAssetUrl(reconstruction.overlay_image_url, apiBase)
@@ -48,7 +48,10 @@ export function MeshViewer({ reconstruction, apiBase = "", compact = false }: Me
       <div className="mesh-viewer__meta">
         <img src={sourceUrl} alt="Source slice" className="mesh-viewer__thumbnail" />
         {overlayUrl && (
-          <img src={overlayUrl} alt="Segmentation overlay" className="mesh-viewer__thumbnail" />
+          <>
+            <p className="mesh-viewer__overlay-label">Segmentation overlay (check this matches the tumor)</p>
+            <img src={overlayUrl} alt="Segmentation overlay" className="mesh-viewer__thumbnail mesh-viewer__thumbnail--overlay" />
+          </>
         )}
         <div className="mesh-viewer__stats">
           <div>
@@ -72,6 +75,8 @@ export function MeshViewer({ reconstruction, apiBase = "", compact = false }: Me
         <ul className="mesh-viewer__lesions">
           {reconstruction.lesions.map((lesion, i) => {
             const c = lesion.centroid_mm;
+            const vol = lesion.volume_mm3;
+            if (!c || !vol) return null;
             return (
               <li key={lesion.lesion_id}>
                 <strong>Lesion {i + 1}</strong>
@@ -79,11 +84,11 @@ export function MeshViewer({ reconstruction, apiBase = "", compact = false }: Me
                   ({c.x.toFixed(1)}, {c.y.toFixed(1)}, {c.z.toFixed(1)}) mm
                 </span>
                 <span className="mesh-viewer__conf">
-                  in-plane {Math.round(lesion.in_plane_confidence * 100)}% · depth{" "}
-                  {Math.round(lesion.depth_confidence * 100)}%
+                  in-plane {Math.round((lesion.in_plane_confidence ?? 0) * 100)}% · depth{" "}
+                  {Math.round((lesion.depth_confidence ?? 0) * 100)}%
                 </span>
                 <span className="mesh-viewer__vol">
-                  ~{lesion.volume_mm3.value.toFixed(0)} mm³ ({lesion.volume_mm3.source})
+                  ~{vol.value.toFixed(0)} mm³ ({vol.source})
                 </span>
               </li>
             );
