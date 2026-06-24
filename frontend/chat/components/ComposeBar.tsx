@@ -98,7 +98,7 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
       <input
         type="text"
         className="compose__input"
-        placeholder="Upload 1–N axial slices… drag & drop for better Z"
+        placeholder="Upload DICOM or axial slices (more = better 3D)…"
         value={text}
         onChange={(e) => setText(e.target.value)}
         disabled={disabled}

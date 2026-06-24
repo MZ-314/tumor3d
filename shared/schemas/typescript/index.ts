@@ -46,8 +46,11 @@ export interface ReconstructResponse {
   chat_id: string | null;
   source_image_url: string;
   overlay_image_url: string | null;
-  scene_mesh_url: string;
-  mesh_format: string;
+    scene_mesh_url: string;
+    volume_nifti_url?: string | null;
+    tumor_mask_nifti_url?: string | null;
+    viewer_mode?: string;
+    mesh_format: string;
   slice_count: number;
   accuracy_tier: AccuracyTier;
   modality: string;

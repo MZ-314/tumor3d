@@ -35,12 +35,30 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
         ]
     )
 
-    if n == 0:
+    if result.viewer_mode == "volume" and result.volume_nifti_url:
         lines.append(
-            "No whole-tumor region was detected by MONAI on this upload. "
-            "A rotatable 3D slice preview is shown instead — there are no lesion coordinates. "
-            "For tumor localization, upload post-contrast T1 (T1c) DICOM or more axial slices."
+            "The 3D panel uses a real volume viewer (NiiVue): drag the crosshair to slice "
+            "through axial, coronal, and sagittal planes. "
+            + (
+                "A red tumor mask overlay is shown where segmentation found a lesion."
+                if result.tumor_mask_nifti_url
+                else "No tumor mask overlay — the scan volume is still visible in 3D."
+            )
         )
+
+    if n == 0:
+        if result.viewer_mode == "volume":
+            lines.append(
+                "No whole-tumor region was detected by segmentation on this upload. "
+                "The volume viewer still shows your scan in multiplanar 3D — there are no lesion coordinates. "
+                "Upload post-contrast T1 (T1c) DICOM or 10+ axial slices for better depth and detection."
+            )
+        else:
+            lines.append(
+                "No whole-tumor region was detected by MONAI on this upload. "
+                "A rotatable 3D slice preview is shown instead — there are no lesion coordinates. "
+                "For tumor localization, upload post-contrast T1 (T1c) DICOM or more axial slices."
+            )
     else:
         lines.append(f"Found {n} candidate {lesion_word} ({tier}).")
 

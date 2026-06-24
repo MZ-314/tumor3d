@@ -3,9 +3,12 @@ import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { Suspense } from "react";
 import type { ReconstructResponse } from "@shared/index";
 import { ACCURACY_TIER_LABELS, API_BASE, resolveAssetUrl } from "./api";
+import { NiivueVolumeViewer } from "./NiivueVolumeViewer";
 import { SliceTexturedPlane } from "./SliceTexturedPlane";
 import { TumorMesh } from "./TumorMesh";
+import { ViewerErrorBoundary } from "./ViewerErrorBoundary";
 import "./viewer.css";
+import "./niivue-viewer.css";
 
 interface MeshViewerProps {
   reconstruction: ReconstructResponse;
@@ -29,30 +32,44 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
     : null;
   const tierLabel =
     ACCURACY_TIER_LABELS[reconstruction.accuracy_tier] ?? reconstruction.accuracy_tier;
-  const slicePreviewOnly = reconstruction.lesions.length === 0;
+  const useVolume =
+    reconstruction.viewer_mode === "volume" && Boolean(reconstruction.volume_nifti_url);
+  const slicePreviewOnly = !useVolume && reconstruction.lesions.length === 0;
 
   return (
     <div className={`mesh-viewer ${compact ? "mesh-viewer--compact" : ""}`}>
       <div className="mesh-viewer__canvas-wrap">
-        <Canvas>
-          <PerspectiveCamera makeDefault position={[0, 0, 4]} fov={45} />
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[4, 6, 8]} intensity={1.1} />
-          <directionalLight position={[-3, -2, -4]} intensity={0.35} />
-          <Suspense fallback={<LoadingFallback />}>
-            {slicePreviewOnly ? (
-              <SliceTexturedPlane imageUrl={sourceUrl} overlayUrl={overlayUrl} />
-            ) : (
-              <TumorMesh meshUrl={reconstruction.scene_mesh_url} apiBase={apiBase} />
-            )}
-          </Suspense>
-          <OrbitControls enablePan enableZoom enableRotate />
-        </Canvas>
-        <p className="mesh-viewer__hint">
-          {slicePreviewOnly
-            ? "Rotate the MRI slice in 3D · scroll to zoom"
-            : "Drag to rotate · scroll to zoom"}
-        </p>
+        <ViewerErrorBoundary>
+          {useVolume ? (
+            <NiivueVolumeViewer
+              volumeUrl={reconstruction.volume_nifti_url!}
+              maskUrl={reconstruction.tumor_mask_nifti_url}
+              apiBase={apiBase}
+            />
+          ) : (
+            <Canvas>
+              <PerspectiveCamera makeDefault position={[0, 0, 4]} fov={45} />
+              <ambientLight intensity={0.6} />
+              <directionalLight position={[4, 6, 8]} intensity={1.1} />
+              <directionalLight position={[-3, -2, -4]} intensity={0.35} />
+              <Suspense fallback={<LoadingFallback />}>
+                {slicePreviewOnly ? (
+                  <SliceTexturedPlane imageUrl={sourceUrl} overlayUrl={overlayUrl} />
+                ) : (
+                  <TumorMesh meshUrl={reconstruction.scene_mesh_url} apiBase={apiBase} />
+                )}
+              </Suspense>
+              <OrbitControls enablePan enableZoom enableRotate />
+            </Canvas>
+          )}
+        </ViewerErrorBoundary>
+        {!useVolume && (
+          <p className="mesh-viewer__hint">
+            {slicePreviewOnly
+              ? "Rotate the MRI slice in 3D · scroll to zoom"
+              : "Drag to rotate · scroll to zoom"}
+          </p>
+        )}
       </div>
 
       <div className="mesh-viewer__meta">
@@ -73,6 +90,10 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
             <span>{tierLabel}</span>
           </div>
           <div>
+            <span className="label">Viewer</span>
+            <span>{useVolume ? "Volume (NiiVue)" : "Mesh"}</span>
+          </div>
+          <div>
             <span className="label">Backend</span>
             <span>{reconstruction.segmentation_backend}</span>
           </div>
@@ -85,7 +106,9 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
         <ul className="mesh-viewer__lesions">
           {reconstruction.lesions.length === 0 && (
             <li className="mesh-viewer__no-lesion">
-              No tumor region detected — 3D view shows your uploaded MRI slice (not a fake tumor).
+              {useVolume
+                ? "No tumor mask — volume viewer shows your scan; upload more DICOM slices for better 3D."
+                : "No tumor region detected — 3D view shows your uploaded slice only."}
             </li>
           )}
           {reconstruction.lesions.map((lesion, i) => {

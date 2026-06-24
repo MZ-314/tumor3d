@@ -31,6 +31,9 @@ class ReconstructResponse(BaseModel):
     source_image_url: str
     overlay_image_url: str | None = None
     scene_mesh_url: str
+    volume_nifti_url: str | None = None
+    tumor_mask_nifti_url: str | None = None
+    viewer_mode: str = "volume"
     mesh_format: str = "glb"
     slice_count: int = Field(..., ge=1)
     accuracy_tier: AccuracyTier

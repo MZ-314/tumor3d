@@ -35,3 +35,5 @@ If it says `"stub"` you forgot `export SEGMENTATION_BACKEND=monai`.
 - **Stub is not tumor AI** — only for UI tests without GPU.
 - BraTS model expects brain MRI; best with **DICOM** or several axial slices.
 - Single JPEG works as a fallback (one channel repeated 4×) but quality is limited.
+- **Volume viewer:** uploads export NIfTI (`*_volume.nii.gz`, optional `*_tumor.nii.gz`). The frontend uses NiiVue for multiplanar slicing. `nibabel` is included in backend deps — `pip install -e ".[dev,gpu,dicom]"` covers it.
+- For a boss demo: upload **10+ DICOM axial slices** (T1c if available). Drag the crosshair in the 3D panel to slice through the real volume; red overlay = MONAI tumor mask.

@@ -9,6 +9,7 @@ from config_medical import (
     MedicalPipelineError,
     ensure_data_dirs,
 )
+from pipeline.export.nifti_export import combined_lesion_mask, save_mask_nifti, save_volume_nifti
 from pipeline.ingest.images import load_slice_volume, save_png_overlay
 from pipeline.mesh.lesion_mesh import build_lesion_geometries, get_scene_path
 from pipeline.mesh.slice_preview import build_slice_preview_scene
@@ -71,6 +72,24 @@ async def process_medical_slices(
         Image.fromarray(arr).save(source_path)
 
     base = "/static"
+
+    volume_nii_path = work_dir / f"{reconstruction_id}_volume.nii.gz"
+    try:
+        save_volume_nifti(volume, volume_nii_path)
+        volume_nifti_url = f"{base}/{reconstruction_id}/{volume_nii_path.name}"
+    except Exception:
+        volume_nifti_url = None
+
+    tumor_mask_nifti_url = None
+    combined_mask_vol = combined_lesion_mask(seg.lesions)
+    if combined_mask_vol is not None:
+        mask_nii_path = work_dir / f"{reconstruction_id}_tumor.nii.gz"
+        try:
+            save_mask_nifti(combined_mask_vol, volume, mask_nii_path)
+            tumor_mask_nifti_url = f"{base}/{reconstruction_id}/{mask_nii_path.name}"
+        except Exception:
+            tumor_mask_nifti_url = None
+
     scene_path = get_scene_path(work_dir, reconstruction_id)
     lesion_results: list[LesionResult] = []
     for geo in geometries:
@@ -118,6 +137,9 @@ async def process_medical_slices(
         if overlay_path.exists()
         else None,
         scene_mesh_url=f"{base}/{reconstruction_id}/{scene_path.name}",
+        volume_nifti_url=volume_nifti_url,
+        tumor_mask_nifti_url=tumor_mask_nifti_url,
+        viewer_mode="volume" if volume_nifti_url else "mesh",
         slice_count=volume.data.shape[0],
         accuracy_tier=tier,
         modality=modality,

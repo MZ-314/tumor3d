@@ -68,6 +68,8 @@ def test_reconstruct_single_slice(client) -> None:
     assert body["accuracy_tier"] == "single_slice"
     assert len(body["lesions"]) >= 1
     assert body["scene_mesh_url"].endswith("_scene.glb")
+    assert body["viewer_mode"] == "volume"
+    assert body["volume_nifti_url"] is not None
 
 
 @pytest.mark.asyncio
@@ -87,9 +89,11 @@ async def test_medical_pipeline_direct(tmp_path: Path, monkeypatch: pytest.Monke
     result = await process_medical_slices([img_path], work, modality="brain_mri")
     assert result.accuracy_tier == AccuracyTier.SINGLE_SLICE
     assert len(result.lesions) >= 1
-    assert Path(work / f"{work.name}_scene.glb").name in result.scene_mesh_url or (
-        work / f"{work.name}_scene.glb"
-    ).exists() or any(work.glob("*_scene.glb"))
+    assert result.viewer_mode == "volume"
+    assert result.volume_nifti_url is not None
+    assert result.tumor_mask_nifti_url is not None
+    assert (work / f"{work.name}_volume.nii.gz").exists()
+    assert (work / f"{work.name}_tumor.nii.gz").exists()
 
 
 def test_chat_crud(client) -> None:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,47 +21,95 @@ class SliceVolume:
     source_paths: list[Path]
 
 
-def _load_single_array(path: Path) -> np.ndarray:
-    suffix = path.suffix.lower()
-    if suffix in {".dcm", ".dicom"}:
-        try:
-            import pydicom
-        except ImportError as exc:
-            raise ValueError(
-                "DICOM upload requires pydicom. Install with: pip install pydicom"
-            ) from exc
-        ds = pydicom.dcmread(str(path))
-        arr = ds.pixel_array.astype(np.float32)
-        if hasattr(ds, "RescaleSlope") and hasattr(ds, "RescaleIntercept"):
-            arr = arr * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
-        arr = arr - arr.min()
-        denom = arr.max() or 1.0
-        arr = arr / denom
-        return arr
+@dataclass
+class _DicomSlice:
+    array: np.ndarray
+    sort_key: float
+    row_spacing: float
+    col_spacing: float
+    thickness: float
 
+
+def _is_dicom(path: Path) -> bool:
+    return path.suffix.lower() in {".dcm", ".dicom"}
+
+
+def _load_png_array(path: Path) -> np.ndarray:
     with Image.open(path) as img:
         gray = img.convert("L")
-        arr = np.asarray(gray, dtype=np.float32) / 255.0
-    return arr
+        return np.asarray(gray, dtype=np.float32) / 255.0
+
+
+def _load_dicom_slice(path: Path) -> _DicomSlice:
+    import pydicom
+
+    ds = pydicom.dcmread(str(path))
+    arr = ds.pixel_array.astype(np.float32)
+    if hasattr(ds, "RescaleSlope") and hasattr(ds, "RescaleIntercept"):
+        arr = arr * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
+    arr = arr - arr.min()
+    denom = arr.max() or 1.0
+    arr = arr / denom
+
+    row_sp = col_sp = DEFAULT_PIXEL_SPACING_MM
+    thickness = DEFAULT_SLICE_THICKNESS_MM
+    sort_key = 0.0
+
+    if hasattr(ds, "PixelSpacing") and ds.PixelSpacing is not None:
+        row_sp = float(ds.PixelSpacing[0])
+        col_sp = float(ds.PixelSpacing[1])
+    if hasattr(ds, "SliceThickness") and ds.SliceThickness:
+        thickness = float(ds.SliceThickness)
+    if hasattr(ds, "InstanceNumber"):
+        sort_key = float(ds.InstanceNumber)
+    elif hasattr(ds, "ImagePositionPatient") and ds.ImagePositionPatient is not None:
+        sort_key = float(ds.ImagePositionPatient[2])
+
+    return _DicomSlice(
+        array=arr,
+        sort_key=sort_key,
+        row_spacing=row_sp,
+        col_spacing=col_sp,
+        thickness=thickness,
+    )
 
 
 def load_slice_volume(paths: list[Path]) -> SliceVolume:
     if not paths:
         raise ValueError("At least one image path is required")
 
-    arrays = [_load_single_array(p) for p in paths]
+    if all(_is_dicom(p) for p in paths):
+        try:
+            import pydicom  # noqa: F401
+        except ImportError as exc:
+            raise ValueError(
+                "DICOM upload requires pydicom. Install with: pip install pydicom"
+            ) from exc
+
+        dicom_slices = [_load_dicom_slice(p) for p in paths]
+        dicom_slices.sort(key=lambda s: s.sort_key)
+        arrays = [s.array for s in dicom_slices]
+        h, w = arrays[0].shape
+        for i, arr in enumerate(arrays[1:], start=1):
+            if arr.shape != (h, w):
+                raise ValueError(f"DICOM slice {i} shape {arr.shape} != {(h, w)}")
+
+        volume = arrays[0][np.newaxis, ...] if len(arrays) == 1 else np.stack(arrays, axis=0)
+        ref = dicom_slices[0]
+        return SliceVolume(
+            data=volume,
+            pixel_spacing_mm=(ref.row_spacing, ref.col_spacing),
+            slice_thickness_mm=ref.thickness,
+            source_paths=list(paths),
+        )
+
+    arrays = [_load_png_array(p) for p in paths]
     h, w = arrays[0].shape
     for i, arr in enumerate(arrays[1:], start=1):
         if arr.shape != (h, w):
-            raise ValueError(
-                f"Slice {i} shape {arr.shape} does not match first slice {(h, w)}"
-            )
+            raise ValueError(f"Slice {i} shape {arr.shape} does not match first slice {(h, w)}")
 
-    if len(arrays) == 1:
-        volume = arrays[0][np.newaxis, ...]
-    else:
-        volume = np.stack(arrays, axis=0)
-
+    volume = arrays[0][np.newaxis, ...] if len(arrays) == 1 else np.stack(arrays, axis=0)
     return SliceVolume(
         data=volume,
         pixel_spacing_mm=(DEFAULT_PIXEL_SPACING_MM, DEFAULT_PIXEL_SPACING_MM),
