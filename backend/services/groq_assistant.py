@@ -25,11 +25,11 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
     if getattr(result, "pipeline_type", "medical") == "ai_3d":
         lines.append(
             f"Built an AI-inferred 3D mesh from your image ({result.segmentation_backend}). "
-            "This is not a CT/MRI volume — hidden surfaces are guessed by the model."
+            "TripoSR treats the whole picture as one object — it does not understand MRI slices or montages."
         )
         lines.append(
-            "Rotate the 3D model in the viewer. For real scan data (knee, brain, etc.), "
-            "switch to **DICOM volume** mode and upload a full slice series."
+            "For real brain/knee CT or MRI: use **DICOM volume** mode with your `.dcm` series. "
+            "AI 3D is for a single everyday photo (one subject)."
         )
         if user_text:
             lines.insert(0, f'Re: your note — "{user_text[:120]}"')

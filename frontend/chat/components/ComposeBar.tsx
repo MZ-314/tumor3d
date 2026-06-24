@@ -171,7 +171,7 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
         className="compose__input"
         placeholder={
           modality === "ai_3d"
-            ? "Upload one photo → AI builds a 3D mesh…"
+            ? "One everyday photo only — not MRI montages or scan sheets…"
             : modality === "volume_mri"
               ? "DICOM series: 📁 folder or many .dcm files…"
               : "Brain DICOM + MONAI tumor segmentation…"

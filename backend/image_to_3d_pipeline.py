@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 
 from config_reconstruction import IMAGE3D_BACKEND, Image3DError
+from pipeline.image_to_3d.image_preflight import validate_ai_3d_input
 from pipeline.image_to_3d.stub_mesh import build_relief_mesh_glb
 from pipeline.image_to_3d.triposr_infer import run_triposr, triposr_available
 from services.groq_assistant import build_assistant_summary
@@ -29,6 +30,8 @@ async def process_image_to_3d(
         from PIL import Image
 
         Image.open(image_path).convert("RGB").save(source_path)
+
+    validate_ai_3d_input(image_path)
 
     scene_path = work_dir / f"{reconstruction_id}_scene.glb"
 
