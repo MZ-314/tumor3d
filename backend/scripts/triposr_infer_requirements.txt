@@ -5,3 +5,5 @@ git+https://github.com/tatsy/torchmcubes.git
 transformers>=4.35.0,<4.36
 rembg>=2.0.50
 onnxruntime>=1.17.0
+xatlas==0.0.9
+moderngl>=5.10.0

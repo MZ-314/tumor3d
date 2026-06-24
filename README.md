@@ -41,6 +41,7 @@ pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
 
 # AI 2D→3D
 python scripts/setup_triposr.py
+pip install onnxruntime xatlas==0.0.9 moderngl
 export IMAGE3D_BACKEND=triposr
 export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
 
