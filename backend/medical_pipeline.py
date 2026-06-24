@@ -11,6 +11,7 @@ from config_medical import (
 )
 from pipeline.ingest.images import load_slice_volume, save_png_overlay
 from pipeline.mesh.lesion_mesh import build_lesion_geometries, get_scene_path
+from pipeline.mesh.slice_preview import build_slice_preview_scene
 from pipeline.segment.backends import segment_volume
 from services.groq_assistant import build_assistant_summary
 from shared.schemas.pydantic.common import AccuracyTier
@@ -41,9 +42,13 @@ async def process_medical_slices(
     try:
         volume = load_slice_volume(slice_paths)
         seg = segment_volume(volume.data, backend, modality=modality)
-        geometries = build_lesion_geometries(
-            volume, seg.lesions, work_dir, reconstruction_id
-        )
+        if seg.lesions:
+            geometries = build_lesion_geometries(
+                volume, seg.lesions, work_dir, reconstruction_id
+            )
+        else:
+            geometries = []
+            build_slice_preview_scene(volume, work_dir, reconstruction_id)
     except MedicalPipelineError:
         raise
     except Exception as exc:
@@ -83,6 +88,7 @@ async def process_medical_slices(
             )
         )
 
+    no_lesion = len(seg.lesions) == 0
     stub_disclaimer = (
         "STUB DEMO MODE: this is not real tumor detection. "
         "Bright-region heuristics only — unsuitable for clinical MRI. "
@@ -92,8 +98,14 @@ async def process_medical_slices(
         stub_disclaimer
         if backend == "stub"
         else (
-            "Tumor location on the slice is model-inferred. Depth and volume improve with "
-            "more slices. Not for diagnosis."
+            "MONAI found no whole-tumor region on this upload. Showing a 3D slice preview only — "
+            "no tumor coordinates. Try DICOM T1c or more axial slices with visible enhancing tumor. "
+            "Not for diagnosis."
+            if no_lesion
+            else (
+                "Tumor location on the slice is model-inferred. Depth and volume improve with "
+                "more slices. Not for diagnosis."
+            )
         )
     )
 

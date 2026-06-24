@@ -73,6 +73,11 @@ export function MeshViewer({ reconstruction, apiBase = API_BASE, compact = false
         </div>
 
         <ul className="mesh-viewer__lesions">
+          {reconstruction.lesions.length === 0 && (
+            <li className="mesh-viewer__no-lesion">
+              No tumor region detected — 3D preview is the imaging slab only.
+            </li>
+          )}
           {reconstruction.lesions.map((lesion, i) => {
             const c = lesion.centroid_mm;
             const vol = lesion.volume_mm3;

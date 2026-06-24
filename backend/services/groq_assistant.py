@@ -32,9 +32,17 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
         [
             f"I analyzed {result.slice_count} slice(s) as {result.modality.replace('_', ' ')} "
             f"using the {result.segmentation_backend} backend.",
-            f"Found {n} candidate {lesion_word} ({tier}).",
         ]
     )
+
+    if n == 0:
+        lines.append(
+            "No whole-tumor region was detected by MONAI on this upload. "
+            "A rotatable 3D slice preview is shown instead — there are no lesion coordinates. "
+            "For tumor localization, upload post-contrast T1 (T1c) DICOM or more axial slices."
+        )
+    else:
+        lines.append(f"Found {n} candidate {lesion_word} ({tier}).")
 
     for i, lesion in enumerate(result.lesions, start=1):
         c = lesion.centroid_mm

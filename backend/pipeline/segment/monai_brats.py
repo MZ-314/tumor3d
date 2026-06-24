@@ -171,7 +171,9 @@ def segment_brats(volume: np.ndarray) -> SegmentationResult:
 
     # Trim depth padding
     wt = wt[:orig_z] if wt.shape[0] > orig_z else wt
-    mask3d = wt > 0.5
+    from config_medical import MONAI_WT_THRESHOLD
+
+    mask3d = wt > MONAI_WT_THRESHOLD
 
     if volume.shape[0] == 1 and mask3d.shape[0] > 1:
         mask3d = mask3d[:1]
@@ -187,10 +189,7 @@ def segment_brats(volume: np.ndarray) -> SegmentationResult:
         )
 
     if not lesions:
-        raise SegmentationError(
-            "MONAI did not detect a whole-tumor region. "
-            "Try more axial slices, DICOM (T1c), or a scan with visible enhancing tumor."
-        )
+        return SegmentationResult(lesions=[], global_confidence=0.0)
 
     lesions.sort(key=lambda l: l.mask.sum(), reverse=True)
     lesions = lesions[:5]
