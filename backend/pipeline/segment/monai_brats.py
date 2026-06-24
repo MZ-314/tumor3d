@@ -43,27 +43,41 @@ def ensure_brats_bundle() -> Path:
         )
 
     try:
+        import huggingface_hub  # noqa: F401
         from monai.bundle import download as bundle_download
     except ImportError as exc:
         raise SegmentationError(
-            "MONAI is not installed. On RunPod: pip install -e backend/.[gpu]"
+            "MONAI GPU deps missing. On RunPod run:\n"
+            "  pip install huggingface_hub\n"
+            "  pip install -e backend/.[gpu]"
         ) from exc
 
     parent = root.parent
     parent.mkdir(parents=True, exist_ok=True)
     logger.info("Downloading %s bundle to %s (first run may take several minutes)…", BUNDLE_NAME, parent)
-    bundle_download(
-        name=BUNDLE_NAME,
-        bundle_dir=str(parent),
-        source="monaihosting",
-        progress=True,
-    )
+
+    try:
+        bundle_download(
+            name=BUNDLE_NAME,
+            bundle_dir=str(parent),
+            source="huggingface_hub",
+            repo="MONAI/brats_mri_segmentation",
+            progress=True,
+        )
+    except Exception:
+        bundle_download(
+            name=BUNDLE_NAME,
+            bundle_dir=str(parent),
+            source="monaihosting",
+            progress=True,
+        )
 
     if not inference_cfg.is_file():
-        # Some installs nest under versioned folder
         candidates = list(parent.rglob("configs/inference.json"))
         if candidates:
-            return candidates[0].parents[1]
+            found = candidates[0].parents[1]
+            if found.is_dir():
+                return found
     if not inference_cfg.is_file():
         raise SegmentationError(f"Bundle download finished but inference.json missing under {root}")
 
