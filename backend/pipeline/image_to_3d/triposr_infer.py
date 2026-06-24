@@ -13,6 +13,15 @@ from config_reconstruction import TRIPOSR_DIR, TRIPOSR_MC_RESOLUTION, Image3DErr
 
 logger = logging.getLogger(__name__)
 
+# RunPod sets HF_HUB_ENABLE_HF_TRANSFER=1 without installing hf_transfer.
+_TRIPOSR_ENV_OVERRIDES = {"HF_HUB_ENABLE_HF_TRANSFER": "0"}
+
+
+def _triposr_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(_TRIPOSR_ENV_OVERRIDES)
+    return env
+
 
 def triposr_available() -> bool:
     run_py = TRIPOSR_DIR / "run.py"
@@ -45,6 +54,9 @@ def run_triposr(image_path: Path, work_dir: Path, out_glb: Path) -> Path:
         "--mc-resolution",
         str(TRIPOSR_MC_RESOLUTION),
     ]
+    ckpt = TRIPOSR_DIR / "model.ckpt"
+    if ckpt.is_file() and (TRIPOSR_DIR / "config.yaml").is_file():
+        cmd.extend(["--pretrained-model-name-or-path", str(TRIPOSR_DIR)])
     logger.info("TripoSR: %s", " ".join(cmd))
     try:
         proc = subprocess.run(
@@ -54,6 +66,7 @@ def run_triposr(image_path: Path, work_dir: Path, out_glb: Path) -> Path:
             text=True,
             timeout=int(os.environ.get("TRIPOSR_TIMEOUT_SEC", "600")),
             check=False,
+            env=_triposr_env(),
         )
     except subprocess.TimeoutExpired as exc:
         raise Image3DError("TripoSR timed out (>10 min). Try a smaller image.") from exc

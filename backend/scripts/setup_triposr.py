@@ -46,15 +46,20 @@ def main() -> None:
     _restore_backend_deps()
 
     ckpt_dest = target / "model.ckpt"
-    if not ckpt_dest.is_file():
-        print("Downloading TripoSR weights from Hugging Face …")
+    config_dest = target / "config.yaml"
+    hf_files = ("model.ckpt", "config.yaml")
+    missing = [name for name in hf_files if not (target / name).is_file()]
+    if missing:
+        print(f"Downloading from Hugging Face: {', '.join(missing)} …")
         download_py = (
             "from huggingface_hub import hf_hub_download\n"
             "import shutil\n"
             "from pathlib import Path\n"
-            "p = hf_hub_download('stabilityai/TripoSR', 'model.ckpt')\n"
-            f"shutil.copy2(p, Path(r'{ckpt_dest}'))\n"
-            "print('Saved', p)\n"
+            "target = Path(r'" + str(target).replace("\\", "\\\\") + "')\n"
+            "for name in " + repr(missing) + ":\n"
+            "    p = hf_hub_download('stabilityai/TripoSR', name)\n"
+            "    shutil.copy2(p, target / name)\n"
+            "    print('Saved', target / name)\n"
         )
         _run([sys.executable, "-c", download_py], env=_HF_ENV)
     else:
