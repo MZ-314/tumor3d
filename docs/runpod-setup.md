@@ -1,5 +1,7 @@
 # RunPod setup — MONAI medical segmentation
 
+**New pod?** Start with [`runpod-first-steps.md`](runpod-first-steps.md) (web terminal, port 8000, laptop `.env`).
+
 Use this guide to run **real** brain tumor segmentation on a RunPod GPU. Laptops and Macs should use `SEGMENTATION_BACKEND=stub` for UI development only.
 
 ## Pod requirements
