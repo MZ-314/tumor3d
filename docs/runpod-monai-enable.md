@@ -7,6 +7,7 @@ cd /workspace/tumor3d
 git pull origin main
 cd backend
 pip install -e ".[dev,gpu,dicom]"
+pip install huggingface_hub
 python scripts/setup_monai_bundle.py
 ```
 
