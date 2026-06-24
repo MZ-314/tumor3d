@@ -2,9 +2,10 @@
 
 ## Stack
 
-- **SAM 2** — foreground cutout
-- **TRELLIS.2-4B** — image-to-3D with PBR textures
-- **Blender** — mesh cleanup and GLB export
+- **MONAI** (GPU) or **stub** (CPU dev) — tumor segmentation on brain MRI/CT slices
+- **Marching cubes / extrusion** — per-lesion 3D meshes (GLB)
+- **SQLite** — saved chat history
+- **Groq** (optional) — assistant narration
 
 ## Embed API
 
@@ -20,21 +21,23 @@ await mountTumorViewer(messageBubble, {
 
 ## Backend
 
-Deploy `backend/api/main.py` on a GPU server. See [`runpod-setup.md`](runpod-setup.md).
+Deploy `backend/api/main.py`. GPU pod for MONAI; stub for UI-only dev. See [`runpod-setup.md`](runpod-setup.md).
 
-`POST /reconstruct` — multipart image → JSON with `mesh_url` pointing to `.glb`
+`POST /reconstruct` — multipart `images[]` → JSON with `lesions[]`, `scene_mesh_url`, coordinates
+
+`GET/POST /chats` — persisted chat sessions
 
 ## Standalone module
 
-For non-HTTP integration:
-
 ```python
-from reconstruction_3d import process_image_to_3d
-path = await process_image_to_3d(input_path, output_dir)
+from medical_pipeline import process_medical_slices
+from pathlib import Path
+
+result = await process_medical_slices([Path("slice.png")], Path("out/job1"))
 ```
 
 ## Limitations
 
-- Requires 24GB+ NVIDIA GPU for reliable inference
-- Single-image input; unseen angles are AI-inferred
-- Best results: one clear object, plain background
+- Research prototype — not for clinical diagnosis
+- Single slice: depth (Z) and volume are estimated; upload more axial slices for better accuracy
+- CT-specific models: MRI path first; CT routing planned

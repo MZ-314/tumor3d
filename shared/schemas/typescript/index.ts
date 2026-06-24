@@ -1,16 +1,87 @@
-export type ChatRole = "user" | "assistant" | "system";
+export type SourceType = "measured" | "inference";
+export type AccuracyTier = "single_slice" | "partial_volume" | "multi_slice";
+
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface BoundingBox2D {
+  min_row: number;
+  min_col: number;
+  max_row: number;
+  max_col: number;
+}
+
+export interface BoundingBox3D {
+  min_x: number;
+  min_y: number;
+  min_z: number;
+  max_x: number;
+  max_y: number;
+  max_z: number;
+}
+
+export interface ProvenanceField {
+  value: number;
+  confidence: number;
+  source: SourceType;
+}
+
+export interface LesionResult {
+  lesion_id: string;
+  mesh_url: string;
+  centroid_mm: Vec3;
+  bounding_box_2d: BoundingBox2D;
+  bounding_box_3d_mm: BoundingBox3D;
+  volume_mm3: ProvenanceField;
+  in_plane_confidence: number;
+  depth_confidence: number;
+  vertices: number[][];
+}
 
 export interface ReconstructResponse {
   reconstruction_id: string;
-  mesh_url: string;
+  chat_id: string | null;
   source_image_url: string;
-  isolated_image_url: string | null;
+  overlay_image_url: string | null;
+  scene_mesh_url: string;
   mesh_format: string;
-  file_size_bytes: number;
-  pipeline: string;
+  slice_count: number;
+  accuracy_tier: AccuracyTier;
+  modality: string;
+  segmentation_backend: string;
+  lesions: LesionResult[];
   assistant_summary: string;
   disclaimer: string;
 }
+
+export interface ChatSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  role: string;
+  text?: string | null;
+  attachment_url?: string | null;
+  reconstruction?: ReconstructResponse | null;
+  created_at: string;
+}
+
+export interface ChatDetail {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessageRecord[];
+}
+
+export type ChatRole = "user" | "assistant" | "system";
 
 export interface ChatMessage {
   id: string;

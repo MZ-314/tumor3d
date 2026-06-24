@@ -1,16 +1,68 @@
 from pydantic import BaseModel, Field
 
+from shared.schemas.pydantic.common import (
+    AccuracyTier,
+    BoundingBox2D,
+    BoundingBox3D,
+    ProvenanceField,
+    SourceType,
+    Vec3,
+)
+
+
+class LesionResult(BaseModel):
+    lesion_id: str
+    mesh_url: str
+    centroid_mm: Vec3
+    bounding_box_2d: BoundingBox2D
+    bounding_box_3d_mm: BoundingBox3D
+    volume_mm3: ProvenanceField
+    in_plane_confidence: float = Field(..., ge=0.0, le=1.0)
+    depth_confidence: float = Field(..., ge=0.0, le=1.0)
+    vertices: list[list[float]] = Field(
+        default_factory=list,
+        description="Mesh vertices [[x,y,z], ...] in mm (may be decimated)",
+    )
+
 
 class ReconstructResponse(BaseModel):
     reconstruction_id: str
-    mesh_url: str
+    chat_id: str | None = None
     source_image_url: str
-    isolated_image_url: str | None = None
+    overlay_image_url: str | None = None
+    scene_mesh_url: str
     mesh_format: str = "glb"
-    file_size_bytes: int = Field(..., ge=0)
-    pipeline: str = "sam2_trellis2_blender"
+    slice_count: int = Field(..., ge=1)
+    accuracy_tier: AccuracyTier
+    modality: str
+    segmentation_backend: str
+    lesions: list[LesionResult]
     assistant_summary: str
     disclaimer: str = (
-        "This 3D model is AI-generated from a single 2D image. "
-        "Unseen sides are inferred, not photographed."
+        "Tumor location on the slice is model-inferred. Depth and volume improve with "
+        "more slices. Not for diagnosis."
     )
+
+
+class ChatSummary(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+class ChatMessageRecord(BaseModel):
+    id: str
+    role: str
+    text: str | None = None
+    attachment_url: str | None = None
+    reconstruction: ReconstructResponse | None = None
+    created_at: str
+
+
+class ChatDetail(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    messages: list[ChatMessageRecord]

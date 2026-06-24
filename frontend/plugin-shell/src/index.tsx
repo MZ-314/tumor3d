@@ -66,7 +66,7 @@ export async function mountTumorViewer(
     const name = opts.imageUrl.split("/").pop() ?? "scan.png";
     const file = new File([blob], name, { type: blob.type || "image/png" });
 
-    const reconstruction = await reconstructFromFile(file, apiBase, opts.pixelSpacingMm);
+    const reconstruction = await reconstructFromFile(file, apiBase);
     opts.onComplete?.(reconstruction);
 
     root.render(

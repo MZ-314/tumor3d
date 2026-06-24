@@ -1,57 +1,47 @@
-# RunPod setup — SAM 2 + TRELLIS.2 + Blender
+# RunPod setup — MONAI medical segmentation
 
-Use this guide to run the full `reconstruction_3d.py` pipeline on a RunPod GPU instance.
+Use this guide to run **real** brain tumor segmentation on a RunPod GPU. Laptops and Macs should use `SEGMENTATION_BACKEND=stub` for UI development only.
 
 ## Pod requirements
 
 | Resource | Minimum |
 |---|---|
-| GPU | NVIDIA 24GB VRAM (A5000, A6000, RTX 4090, A100) — TRELLIS.2-4B official minimum |
+| GPU | NVIDIA 16GB+ VRAM (24GB A6000 recommended) |
 | OS | Linux (RunPod PyTorch 2.x template) |
-| Disk | 50GB+ persistent volume |
-| RAM | 32GB+ recommended |
-
-> 16GB pods may OOM at 512³. Start with 24GB if possible.
+| Disk | 30GB+ persistent volume |
+| RAM | 16GB+ |
 
 ## One-time setup (SSH into pod)
 
 ```bash
-# 1. Clone this repo
-git clone <your-repo-url> /workspace/tumor3d
-cd /workspace/tumor3d
-
-# 2. Install SAM 2
-git clone https://github.com/facebookresearch/sam2.git /workspace/sam2
-cd /workspace/sam2
-pip install -e .
-mkdir -p checkpoints
-# Download sam2.1_hiera_large.pt from Meta SAM 2 releases into checkpoints/
-
-# 3. Install TRELLIS.2
-git clone -b main https://github.com/microsoft/TRELLIS.2.git --recursive /workspace/TRELLIS.2
-cd /workspace/TRELLIS.2
-. ./setup.sh --new-env --basic --flash-attn --nvdiffrast --nvdiffrec --cumesh --o-voxel --flexgemm
-conda activate trellis2
-
-# 4. Install Blender
-apt-get update && apt-get install -y blender
-
-# 5. Install API dependencies
+git clone https://github.com/MZ-314/tumor3d.git /workspace/tumor3d
 cd /workspace/tumor3d/backend
-pip install -e ".[dev]"
-pip install -r requirements-gpu.txt
+
+pip install -e ".[dev,gpu,dicom]"
 ```
+
+### MONAI bundle
+
+Download or configure a BraTS-style segmentation bundle (example paths vary by bundle):
+
+```bash
+# Example — follow your bundle's README for exact download commands
+mkdir -p /workspace/monai_bundle
+# monai bundle download ... into /workspace/monai_bundle
+```
+
+Set `MONAI_BUNDLE_DIR` to the directory containing the bundle `configs/` and weights.
 
 ## Environment variables
 
 ```bash
-export SAM2_CHECKPOINT=/workspace/sam2/checkpoints/sam2.1_hiera_large.pt
-export SAM2_CONFIG=configs/sam2.1/sam2.1_hiera_l.yaml
-export SAM2_DEVICE=cuda
-export TRELLIS2_MODEL_ID=microsoft/TRELLIS.2-4B
-export TRELLIS2_DEVICE=cuda
-export BLENDER_BIN=blender
+export SEGMENTATION_BACKEND=monai
+export MONAI_BUNDLE_DIR=/workspace/monai_bundle
+export DATA_DIR=/workspace/tumor3d/data
 export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
+
+# Optional narration
+export GROQ_API_KEY=gsk_...
 ```
 
 ## Start API
@@ -61,27 +51,43 @@ cd /workspace/tumor3d
 uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 ```
 
+Expose port **8000** in RunPod TCP settings and point your frontend `vite.config` proxy or `apiBase` at the pod URL.
+
 ## Smoke test
 
 ```bash
-# From another terminal
-python backend/scripts/smoke_test.py http://127.0.0.1:8000
+curl http://127.0.0.1:8000/health
+# {"status":"ok","pipeline":"medical_segmentation","segmentation_backend":"monai"}
 ```
 
-## GPU end-to-end test
+Upload a slice:
 
 ```bash
-pytest backend/tests/test_reconstruction_3d.py -m gpu -v
+curl -F "images=@/path/to/slice.png" -F "modality=brain_mri" \
+  http://127.0.0.1:8000/reconstruct
 ```
 
-## RunPod free trial tips
+## GPU test
 
-- Use a **24GB** template if available (PyTorch 2.x + CUDA 12.x).
-- First TRELLIS.2 inference downloads ~10GB weights from Hugging Face — allow time.
-- Set `RECON_STAGE2_TIMEOUT_S=900` for first run (model download + compile).
-- Expose port 8000 in RunPod TCP settings to hit the API from your laptop.
+```bash
+pytest backend/tests/test_medical_pipeline.py -m gpu -v
+```
 
-## Laptop (Windows)
+## Laptop / Mac (no GPU)
 
-Your local machine can edit code and run **CPU-only tests** (`pytest -m "not gpu"`).
-Full pipeline inference **must** run on the GPU pod.
+```bash
+export SEGMENTATION_BACKEND=stub
+pip install -e backend/.[dev]
+PYTHONPATH=. pytest backend/tests -m "not gpu" -v
+cd frontend && npm run dev
+```
+
+Stub segmentation uses bright-region heuristics — good for **UI and API** testing, not clinical accuracy.
+
+## Accuracy tiers
+
+| Slices uploaded | `accuracy_tier` | Z / volume |
+|---|---|---|
+| 1 | `single_slice` | Depth extruded / estimated |
+| 2–9 | `partial_volume` | Improving |
+| 10+ | `multi_slice` | Best available in this prototype |

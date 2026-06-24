@@ -1,0 +1,95 @@
+"""Groq-powered assistant narration with template fallback."""
+
+from __future__ import annotations
+
+import json
+
+import httpx
+
+from config_medical import GROQ_API_KEY, GROQ_MODEL
+from shared.schemas.pydantic.reconstruct import ReconstructResponse
+
+
+def _template_summary(result: ReconstructResponse, user_text: str | None) -> str:
+    n = len(result.lesions)
+    lesion_word = "lesion" if n == 1 else "lesions"
+    tier_labels = {
+        "single_slice": "single slice (depth is estimated)",
+        "partial_volume": "partial volume",
+        "multi_slice": "multi-slice volume",
+    }
+    tier = tier_labels.get(result.accuracy_tier.value, result.accuracy_tier.value)
+
+    lines = [
+        f"I analyzed {result.slice_count} slice(s) as {result.modality.replace('_', ' ')} "
+        f"using the {result.segmentation_backend} backend.",
+        f"Found {n} candidate {lesion_word} ({tier}).",
+    ]
+
+    for i, lesion in enumerate(result.lesions, start=1):
+        c = lesion.centroid_mm
+        vol = lesion.volume_mm3
+        lines.append(
+            f"Lesion {i} — centroid ≈ ({c.x:.1f}, {c.y:.1f}, {c.z:.1f}) mm; "
+            f"volume ≈ {vol.value:.0f} mm³ "
+            f"(confidence {vol.confidence:.0%}, {vol.source.value})."
+        )
+
+    lines.append(
+        "Upload more axial slices to improve depth and volume estimates. "
+        "This is a research prototype — not for clinical diagnosis."
+    )
+
+    if user_text:
+        lines.insert(0, f"Re: your note — \"{user_text[:120]}\"")
+
+    return "\n\n".join(lines)
+
+
+async def build_assistant_summary(
+    result: ReconstructResponse,
+    *,
+    user_text: str | None = None,
+) -> str:
+    if not GROQ_API_KEY:
+        return _template_summary(result, user_text)
+
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a medical imaging assistant for a research prototype. "
+                    "Explain tumor localization results clearly for developers and clinicians. "
+                    "Never claim diagnostic certainty. Mention confidence and that more slices improve Z."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"User message: {user_text or '(none)'}\n\n"
+                    f"Structured results JSON:\n{result.model_dump_json(indent=2)}"
+                ),
+            },
+        ],
+        "temperature": 0.3,
+        "max_tokens": 600,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            return content.strip()
+    except Exception:
+        return _template_summary(result, user_text)

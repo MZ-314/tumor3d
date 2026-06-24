@@ -1,20 +1,15 @@
 # Integration notes
 
-## Pipeline (v0.2)
+## Pipeline
 
-`backend/reconstruction_3d.py` — SAM 2 → TRELLIS.2 → Blender → GLB
+`backend/medical_pipeline.py` — ingest slices → segment (stub/MONAI) → per-lesion mesh → Groq/template summary
 
-Legacy ellipsoid/tumor stub pipeline removed.
+## Response shape
 
-## API contract
+`ReconstructResponse` includes `lesions[]` with `centroid_mm`, `bounding_box_3d_mm`, `volume_mm3` (with confidence + source), and `scene_mesh_url`.
 
-`ReconstructResponse` fields: `mesh_url`, `source_image_url`, `file_size_bytes`, `pipeline`, `assistant_summary`, `disclaimer`.
+## Dev without GPU
 
-## Deployment
-
-- Inference: RunPod / Linux GPU — see `docs/runpod-setup.md`
-- Laptop: frontend dev + CPU tests only
-
-## Meddollina embed
-
-Use `frontend/plugin-shell` `mountTumorViewer()` — unchanged integration pattern, new backend response shape.
+```bash
+SEGMENTATION_BACKEND=stub uvicorn backend.api.main:app --reload
+```

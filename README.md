@@ -1,30 +1,31 @@
-# Tumor3D — Image to 3D Reconstruction
+# Tumor3D — Medical Imaging Chat (Meddollina prototype)
 
-High-fidelity **single image → 3D model** pipeline for Meddollina integration:
+Brain MRI/CT slice upload → **tumor segmentation** → **3D lesion meshes** with coordinates, saved chat history, and optional **Groq** narration.
 
-| Stage | Technology |
+| Layer | Technology |
 |---|---|
-| 1. Foreground isolation | **Meta SAM 2** |
-| 2. 3D generation | **Microsoft TRELLIS.2** (4B) |
-| 3. Mesh cleanup | **Blender Python API** (headless) |
+| Segmentation (GPU) | **MONAI** BraTS-style bundle on RunPod |
+| Segmentation (dev) | **stub** heuristic (CPU — laptop / Mac M1) |
+| 3D mesh | Mask extrusion / marching cubes per lesion |
+| Chat | FastAPI + SQLite |
+| Viewer | React + Three.js |
 
-Delivered as a chat demo + embeddable viewer widget + standalone `reconstruction_3d.py` module.
+**Not a diagnostic device.** Single-slice depth (Z) and volume are estimated; accuracy improves with more slices.
 
-## Requirements
-
-- **Inference:** Linux GPU server with **24GB+ VRAM** (RunPod recommended)
-- **Dev (laptop):** Python 3.11+, Node 18+ for frontend only
-
-## Quick start — GPU server (RunPod)
-
-See [`docs/runpod-setup.md`](docs/runpod-setup.md) for full install.
+## Quick start — backend (any machine)
 
 ```bash
-export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
-uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+cd backend
+pip install -e ".[dev]"
+cd ..
+set PYTHONPATH=.   # Windows
+# export PYTHONPATH=.  # Mac/Linux
+uvicorn backend.api.main:app --reload --port 8000
 ```
 
-## Quick start — frontend (laptop)
+Set `SEGMENTATION_BACKEND=stub` (default) for CPU demo.
+
+## Quick start — frontend
 
 ```bash
 cd frontend
@@ -32,26 +33,42 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 (proxy to backend on port 8000).
+Open http://localhost:5173 (Vite proxies API to port 8000).
 
-## Core module
+## GPU inference (RunPod)
 
-```python
-from reconstruction_3d import process_image_to_3d
+See [`docs/runpod-setup.md`](docs/runpod-setup.md) for MONAI bundle setup.
 
-glb_path = await process_image_to_3d("/path/to/image.png", "/path/to/output_dir")
+```bash
+export SEGMENTATION_BACKEND=monai
+export MONAI_BUNDLE_DIR=/workspace/monai_bundle
+export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
+uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-No web framework coupling — disk path in, absolute GLB path out.
+## Environment
+
+Copy [`.env.example`](.env.example). Optional `GROQ_API_KEY` enables LLM summaries; without it, a structured template is used.
+
+## API
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Liveness + backend mode |
+| `POST /reconstruct` | Multipart `images[]`, optional `chat_id`, `modality`, `text` |
+| `GET/POST /chats` | List / create chats |
+| `GET /chats/{id}` | Chat with messages + reconstructions |
+| `POST /chats/{id}/messages` | Send slices in a chat |
+
+Response includes `lesions[]` with `centroid_mm`, `bounding_box_3d_mm`, `volume_mm3`, and `scene_mesh_url`.
 
 ## Tests
 
 ```bash
-cd backend && pip install -e ".[dev]"
-cd .. && PYTHONPATH=. pytest backend/tests -m "not gpu" -v
+PYTHONPATH=. pytest backend/tests -m "not gpu" -v
 ```
 
-GPU end-to-end (on RunPod only):
+GPU (RunPod with MONAI):
 
 ```bash
 pytest backend/tests -m gpu -v
@@ -61,24 +78,25 @@ pytest backend/tests -m gpu -v
 
 ```
 backend/
-  reconstruction_3d.py    # Main pipeline orchestrator
-  config_reconstruction.py
-  blender_export.py       # Headless Blender cleanup script
-  api/main.py             # FastAPI wrapper
+  medical_pipeline.py       # Orchestrator
+  config_medical.py
+  pipeline/ingest/          # PNG / DICOM loading
+  pipeline/segment/         # stub + MONAI backends
+  pipeline/mesh/            # Per-lesion GLB export
+  db/database.py            # SQLite chat history
+  services/groq_assistant.py
+  api/main.py
 frontend/
-  chat/                   # Chat demo UI
-  viewer/                 # Reusable 3D viewer
-  plugin-shell/           # mountTumorViewer() embed API
+  chat/                     # Medical chat UI + sidebar
+  viewer/                   # 3D lesion viewer
+  plugin-shell/             # mountTumorViewer() embed
 docs/
   runpod-setup.md
 ```
 
-## API
+## Embed
 
-`POST /reconstruct` — multipart image upload → `ReconstructResponse` with `mesh_url` (.glb)
-
-`GET /health` — liveness check
-
-## Honesty note
-
-3D models are **AI-generated** from a single photo. Sides not visible in the image are inferred by TRELLIS.2, not measured.
+```ts
+import { mountTumorViewer } from "./plugin-shell";
+await mountTumorViewer(container, { imageUrl: "/path/to/slice.png", apiBase: "http://localhost:8000" });
+```

@@ -4,8 +4,10 @@ __pycache__/
 venv/
 .env
 backend/data/
+data/
 dist/
 node_modules/
 *.egg-info/
 .pytest_cache/
 .DS_Store
+*.tsbuildinfo
