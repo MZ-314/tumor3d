@@ -4,3 +4,4 @@ einops>=0.7.0
 git+https://github.com/tatsy/torchmcubes.git
 transformers>=4.35.0,<4.36
 rembg>=2.0.50
+onnxruntime>=1.17.0

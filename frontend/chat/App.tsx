@@ -166,7 +166,7 @@ export function App() {
           <div>
             <h1>Meddollina Medical Chat</h1>
             <p className="app__subtitle">
-              Tumor localization · 1–N slices · MONAI on GPU for real MRI
+              Photo → AI 3D mesh · DICOM stack → volume · optional brain tumor AI
             </p>
           </div>
           <span className="app__badge">Prototype</span>
