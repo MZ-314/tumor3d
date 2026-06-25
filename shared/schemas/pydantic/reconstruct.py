@@ -8,6 +8,7 @@ from shared.schemas.pydantic.common import (
     SourceType,
     Vec3,
 )
+from shared.schemas.pydantic.pipeline import PipelineArtifacts
 
 
 class LesionResult(BaseModel):
@@ -47,6 +48,7 @@ class ReconstructResponse(BaseModel):
         "Tumor location on the slice is model-inferred. Depth and volume improve with "
         "more slices. Not for diagnosis."
     )
+    pipeline_artifacts: PipelineArtifacts | None = None
 
 
 class ChatSummary(BaseModel):

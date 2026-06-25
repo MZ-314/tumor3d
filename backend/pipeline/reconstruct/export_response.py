@@ -1,19 +1,19 @@
-"""Orchestrate medical slice upload → segmentation → lesion meshes → response."""
+"""Build ReconstructResponse from pipeline state (Phase 7)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from config_medical import (
-    SEGMENTATION_BACKEND,
-    MedicalPipelineError,
-    ensure_data_dirs,
-)
-from pipeline.export.nifti_export import combined_lesion_mask, save_mask_nifti, save_volume_nifti
-from pipeline.ingest.images import load_slice_volume, save_png_overlay
+import numpy as np
+from PIL import Image
+
+from config_medical import SEGMENTATION_BACKEND
+from pipeline.export.nifti_export import combined_lesion_mask, save_mask_nifti
+from pipeline.ingest.images import save_png_overlay
 from pipeline.mesh.lesion_mesh import build_lesion_geometries, get_scene_path
 from pipeline.mesh.slice_preview import build_slice_preview_scene
-from pipeline.segment.backends import VOLUME_ONLY_MODALITIES, segment_volume
+from pipeline.reconstruct.context import PipelineState
+from pipeline.segment.backends import VOLUME_ONLY_MODALITIES
 from services.groq_assistant import build_assistant_summary
 from shared.schemas.pydantic.common import AccuracyTier
 from shared.schemas.pydantic.reconstruct import LesionResult, ReconstructResponse
@@ -27,33 +27,23 @@ def _accuracy_tier(slice_count: int) -> AccuracyTier:
     return AccuracyTier.MULTI_SLICE
 
 
-async def process_medical_slices(
-    slice_paths: list[Path],
-    work_dir: Path,
-    *,
-    modality: str = "brain_mri",
-    chat_id: str | None = None,
-    user_text: str | None = None,
-    backend: str | None = None,
-) -> ReconstructResponse:
-    ensure_data_dirs()
-    backend = (backend or SEGMENTATION_BACKEND).lower()
-    reconstruction_id = work_dir.name
+async def build_reconstruct_response(state: PipelineState) -> ReconstructResponse:
+    if state.slice_volume is None:
+        raise RuntimeError("slice_volume required")
+    if state.segmentation is None:
+        raise RuntimeError("segmentation required")
 
-    try:
-        volume = load_slice_volume(slice_paths)
-        seg = segment_volume(volume.data, backend, modality=modality)
-        if seg.lesions:
-            geometries = build_lesion_geometries(
-                volume, seg.lesions, work_dir, reconstruction_id
-            )
-        else:
-            geometries = []
-            build_slice_preview_scene(volume, work_dir, reconstruction_id)
-    except MedicalPipelineError:
-        raise
-    except Exception as exc:
-        raise MedicalPipelineError(str(exc)) from exc
+    volume = state.output_volume or state.slice_volume
+    seg = state.segmentation
+    reconstruction_id = state.reconstruction_id
+    work_dir = state.work_dir
+    modality = state.modality
+
+    if seg.lesions:
+        geometries = build_lesion_geometries(volume, seg.lesions, work_dir, reconstruction_id)
+    else:
+        geometries = []
+        build_slice_preview_scene(volume, work_dir, reconstruction_id)
 
     z_mid = volume.data.shape[0] // 2
     overlay_path = work_dir / "overlay.png"
@@ -65,30 +55,21 @@ async def process_medical_slices(
 
     source_path = work_dir / "source.png"
     if not source_path.exists():
-        from PIL import Image
-        import numpy as np
-
         arr = (np.clip(volume.data[z_mid], 0, 1) * 255).astype(np.uint8)
         Image.fromarray(arr).save(source_path)
 
     base = "/static"
-
     volume_nii_path = work_dir / f"{reconstruction_id}_volume.nii.gz"
-    try:
-        save_volume_nifti(volume, volume_nii_path)
-        volume_nifti_url = f"{base}/{reconstruction_id}/{volume_nii_path.name}"
-    except Exception:
-        volume_nifti_url = None
+    volume_nifti_url = (
+        f"{base}/{reconstruction_id}/{volume_nii_path.name}" if volume_nii_path.exists() else None
+    )
 
     tumor_mask_nifti_url = None
     combined_mask_vol = combined_lesion_mask(seg.lesions)
     if combined_mask_vol is not None:
         mask_nii_path = work_dir / f"{reconstruction_id}_tumor.nii.gz"
-        try:
-            save_mask_nifti(combined_mask_vol, volume, mask_nii_path)
-            tumor_mask_nifti_url = f"{base}/{reconstruction_id}/{mask_nii_path.name}"
-        except Exception:
-            tumor_mask_nifti_url = None
+        save_mask_nifti(combined_mask_vol, volume, mask_nii_path)
+        tumor_mask_nifti_url = f"{base}/{reconstruction_id}/{mask_nii_path.name}"
 
     scene_path = get_scene_path(work_dir, reconstruction_id)
     lesion_results: list[LesionResult] = []
@@ -107,9 +88,9 @@ async def process_medical_slices(
             )
         )
 
-    no_lesion = len(seg.lesions) == 0
     volume_only = modality.lower() in VOLUME_ONLY_MODALITIES
     effective_backend = "volume_only" if volume_only else SEGMENTATION_BACKEND
+    no_lesion = len(seg.lesions) == 0
 
     if volume_only:
         disclaimer = (
@@ -117,37 +98,24 @@ async def process_medical_slices(
             "No tumor/lesion AI — MONAI BraTS is trained on brain MRI only. "
             "Not for diagnosis."
         )
-    else:
+    elif no_lesion:
         disclaimer = (
             "MONAI found no whole-tumor region on this upload. "
             "Try brain DICOM T1c or more axial slices with visible enhancing tumor. "
             "Not for diagnosis."
-            if no_lesion
-            else (
-                "Tumor location is model-inferred (brain MRI). Depth improves with "
-                "more slices. Not for diagnosis."
-            )
-        )
-
-    tier = _accuracy_tier(volume.data.shape[0])
-    z_count = volume.data.shape[0]
-    anatomy = "joint" if volume_only else "volume"
-    if z_count <= 1:
-        volume_disclaimer = (
-            f"Only 1 slice uploaded: the 3D viewer shows that single MRI sheet, not a full {anatomy}. "
-            "Upload a full DICOM series from the same study."
-        )
-    elif z_count < 10:
-        volume_disclaimer = (
-            f"Only {z_count} slices uploaded: partial 3D stack. "
-            "Upload more axial DICOM from the same study for a fuller volume."
         )
     else:
-        volume_disclaimer = None
+        disclaimer = (
+            "Tumor location from MONAI BraTS (brain MRI). Depth improves with more slices. "
+            "AI-estimated regions are labeled in pipeline validation. Not for diagnosis."
+        )
+
+    z_count = state.scan_context.slice_count if state.scan_context else volume.data.shape[0]
+    tier = _accuracy_tier(z_count)
 
     response = ReconstructResponse(
         reconstruction_id=reconstruction_id,
-        chat_id=chat_id,
+        chat_id=state.chat_id,
         source_image_url=f"{base}/{reconstruction_id}/source.png",
         overlay_image_url=f"{base}/{reconstruction_id}/overlay.png"
         if overlay_path.exists()
@@ -156,7 +124,7 @@ async def process_medical_slices(
         volume_nifti_url=volume_nifti_url,
         tumor_mask_nifti_url=tumor_mask_nifti_url,
         viewer_mode="volume" if volume_nifti_url else "mesh",
-        slice_count=volume.data.shape[0],
+        slice_count=z_count,
         accuracy_tier=tier,
         modality=modality,
         pipeline_type="medical",
@@ -164,10 +132,9 @@ async def process_medical_slices(
         segmentation_backend=effective_backend,
         lesions=lesion_results,
         assistant_summary="",
-        disclaimer=disclaimer if volume_disclaimer is None else f"{disclaimer} {volume_disclaimer}",
+        disclaimer=disclaimer,
     )
-
     response.assistant_summary = await build_assistant_summary(
-        response, user_text=user_text
+        response, user_text=state.user_text
     )
     return response

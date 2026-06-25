@@ -1,5 +1,8 @@
 export type SourceType = "measured" | "inference";
 export type AccuracyTier = "single_slice" | "partial_volume" | "multi_slice";
+export type MriView = "axial" | "coronal" | "sagittal" | "unknown";
+export type OrganType = "brain" | "knee" | "other" | "unknown";
+export type InputSource = "dicom" | "image" | "montage";
 
 export interface Vec3 {
   x: number;
@@ -60,6 +63,7 @@ export interface ReconstructResponse {
   lesions: LesionResult[];
   assistant_summary: string;
   disclaimer: string;
+  pipeline_artifacts?: PipelineArtifacts | null;
 }
 
 export interface ChatSummary {
@@ -101,4 +105,66 @@ export interface ChatMessage {
   analysisSliceCount?: number;
   analysisStartedAt?: number;
   analysisMode?: string;
+}
+
+export interface SliceSpacing {
+  row_mm: number;
+  col_mm: number;
+  slice_mm: number;
+  source: SourceType;
+}
+
+export interface ScanContext {
+  reconstruction_id: string;
+  input_source: InputSource;
+  organ_type: OrganType;
+  modality: string;
+  mri_view: MriView;
+  accuracy_tier: AccuracyTier;
+  slice_count: number;
+  anchor_slice_indices: number[];
+  slice_spacing_mm?: SliceSpacing | null;
+  volume_shape_zyx?: number[] | null;
+  body_part_examined?: string | null;
+  series_description?: string | null;
+  montage_panels?: number | null;
+  quality_score: number;
+  warnings: string[];
+}
+
+export interface ConfidenceRegion {
+  region_id: string;
+  label: string;
+  source: SourceType;
+  confidence: number;
+  mesh_url?: string | null;
+  volume_mask_path?: string | null;
+}
+
+export interface ValidationReport {
+  overall_confidence: number;
+  anchor_plane_metrics: unknown[];
+  qa_passed: boolean;
+  qa_messages: string[];
+  confidence_regions: ConfidenceRegion[];
+}
+
+export interface StageTiming {
+  stage: string;
+  duration_ms: number;
+  status: string;
+  message?: string | null;
+}
+
+export interface PipelineArtifacts {
+  reconstruction_id: string;
+  pipeline_version: string;
+  scan_context: ScanContext;
+  model_outputs?: unknown | null;
+  anatomical_map?: unknown | null;
+  atlas_warp?: unknown | null;
+  blueprint?: unknown | null;
+  synthesis?: unknown | null;
+  validation?: ValidationReport | null;
+  stage_timings: StageTiming[];
 }

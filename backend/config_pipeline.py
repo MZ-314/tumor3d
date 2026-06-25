@@ -1,0 +1,25 @@
+"""Reconstruction pipeline configuration (Phases 0–10)."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from config_medical import REPO_ROOT
+
+PIPELINE_VERSION = os.environ.get("RECONSTRUCT_PIPELINE_VERSION", "0.1.0")
+
+PARTIAL_VOLUME_MIN_SLICES = int(os.environ.get("PARTIAL_VOLUME_MIN_SLICES", "6"))
+MULTI_SLICE_MIN_SLICES = int(os.environ.get("MULTI_SLICE_MIN_SLICES", "10"))
+
+MEDSAM_CHECKPOINT = Path(
+    os.environ.get("MEDSAM_CHECKPOINT", str(REPO_ROOT / "models" / "medsam" / "medsam_vit_b.pth"))
+)
+
+ATLAS_BRAIN_DIR = Path(os.environ.get("ATLAS_BRAIN_DIR", str(REPO_ROOT / "data" / "atlases" / "brain")))
+ATLAS_KNEE_DIR = Path(os.environ.get("ATLAS_KNEE_DIR", str(REPO_ROOT / "data" / "atlases" / "knee")))
+ATLAS_BRAIN_TEMPLATE = ATLAS_BRAIN_DIR / "template.nii.gz"
+
+NNU_NET_MODEL_DIR = Path(os.environ.get("NNU_NET_MODEL_DIR", str(REPO_ROOT / "models" / "nnunet")))
+
+VALIDATION_DICE_MIN = float(os.environ.get("VALIDATION_DICE_MIN", "0.5"))

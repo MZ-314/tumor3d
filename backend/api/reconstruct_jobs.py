@@ -13,8 +13,16 @@ from api.pipeline_routing import PIPELINE_AI_3D
 from config_medical import MedicalPipelineError
 from config_reconstruction import Image3DError
 from db.database import add_message, get_chat, touch_chat
+from db.jobs import (
+    ReconstructJob,
+    complete_job,
+    create_job_record,
+    fail_job,
+    get_job_record,
+    update_job_stage,
+)
 from image_to_3d_pipeline import process_image_to_3d
-from medical_pipeline import process_medical_slices
+from pipeline.reconstruct import run_reconstruction_pipeline
 from shared.schemas.pydantic.reconstruct import ReconstructResponse
 
 logger = logging.getLogger(__name__)
@@ -24,18 +32,6 @@ ASYNC_SLICE_THRESHOLD = int(os.environ.get("ASYNC_SLICE_THRESHOLD", "3"))
 JobStatus = Literal["processing", "done", "error"]
 
 
-@dataclass
-class ReconstructJob:
-    status: JobStatus = "processing"
-    result: ReconstructResponse | None = None
-    error: str | None = None
-    slice_count: int = 0
-    pipeline: str = "medical"
-
-
-_jobs: dict[str, ReconstructJob] = {}
-
-
 def should_run_async(pipeline: str, slice_count: int) -> bool:
     if pipeline == PIPELINE_AI_3D:
         return True
@@ -43,7 +39,7 @@ def should_run_async(pipeline: str, slice_count: int) -> bool:
 
 
 def get_job(job_id: str) -> ReconstructJob | None:
-    return _jobs.get(job_id)
+    return get_job_record(job_id)
 
 
 def start_job(
@@ -58,10 +54,12 @@ def start_job(
     upload_label: str,
     first_filename: str,
 ) -> None:
-    _jobs[job_id] = ReconstructJob(
-        status="processing",
-        slice_count=len(slice_paths),
+    create_job_record(
+        job_id,
         pipeline=pipeline,
+        slice_count=len(slice_paths),
+        modality=modality,
+        chat_id=chat_id,
     )
     asyncio.create_task(
         _run_job(
@@ -90,7 +88,6 @@ async def _run_job(
     upload_label: str,
     first_filename: str,
 ) -> None:
-    job = _jobs[job_id]
     logger.info(
         "Job %s started — pipeline=%s, %d file(s), modality=%s",
         job_id,
@@ -98,8 +95,13 @@ async def _run_job(
         len(slice_paths),
         modality,
     )
+
+    def on_stage(stage: str) -> None:
+        update_job_stage(job_id, stage)
+
     try:
         if pipeline == PIPELINE_AI_3D:
+            on_stage("ai_3d")
             result = await process_image_to_3d(
                 slice_paths[0],
                 work_dir,
@@ -107,12 +109,13 @@ async def _run_job(
                 user_text=user_text,
             )
         else:
-            result = await process_medical_slices(
+            result = await run_reconstruction_pipeline(
                 slice_paths,
                 work_dir,
                 modality=modality,
                 chat_id=chat_id,
                 user_text=user_text,
+                on_stage=on_stage,
             )
         if chat_id:
             detail = get_chat(chat_id)
@@ -134,14 +137,11 @@ async def _run_job(
                 )
                 result.chat_id = chat_id
 
-        job.status = "done"
-        job.result = result
+        complete_job(job_id, result)
         logger.info("Job %s finished — pipeline=%s", job_id, pipeline)
     except (MedicalPipelineError, Image3DError) as exc:
-        job.status = "error"
-        job.error = str(exc)
+        fail_job(job_id, str(exc))
         logger.warning("Job %s failed: %s", job_id, exc)
     except Exception as exc:
-        job.status = "error"
-        job.error = str(exc)
+        fail_job(job_id, str(exc))
         logger.exception("Job %s unexpected error", job_id)

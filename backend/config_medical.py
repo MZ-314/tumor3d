@@ -12,7 +12,7 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 OUTPUTS_DIR = DATA_DIR / "outputs"
 DB_PATH = Path(os.environ.get("CHAT_DB_PATH", str(DATA_DIR / "chat.db")))
 
-SEGMENTATION_BACKEND = os.environ.get("SEGMENTATION_BACKEND", "stub").lower()
+SEGMENTATION_BACKEND = os.environ.get("SEGMENTATION_BACKEND", "monai").lower()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 

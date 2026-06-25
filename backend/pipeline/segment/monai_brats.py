@@ -135,7 +135,9 @@ def _load_network(bundle_root: Path, device: torch.device):
 def segment_brats(volume: np.ndarray) -> SegmentationResult:
     if not torch.cuda.is_available():
         raise SegmentationError(
-            "MONAI BraTS segmentation requires a CUDA GPU. On laptop use SEGMENTATION_BACKEND=stub."
+            "MONAI BraTS segmentation requires a CUDA GPU. Deploy on RunPod with:\n"
+            "  export SEGMENTATION_BACKEND=monai\n"
+            "  python backend/scripts/setup_monai_bundle.py"
         )
 
     bundle_root = ensure_brats_bundle()

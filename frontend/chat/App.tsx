@@ -10,7 +10,6 @@ import {
 import { MessageList } from "./components/MessageList";
 import { ComposeBar, type ScanModality } from "./components/ComposeBar";
 import { ChatSidebar } from "./components/ChatSidebar";
-import { StubBanner } from "./components/StubBanner";
 
 const WELCOME: ChatMessage = {
   id: "welcome",
@@ -171,8 +170,6 @@ export function App() {
           </div>
           <span className="app__badge">Prototype</span>
         </header>
-
-        <StubBanner />
 
         <main className="app__main" ref={listRef}>
           <MessageList messages={messages} />

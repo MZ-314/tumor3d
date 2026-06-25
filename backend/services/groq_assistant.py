@@ -38,12 +38,6 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
 
     volume_only = result.segmentation_backend == "volume_only"
 
-    if result.segmentation_backend == "stub":
-        lines.append(
-            "⚠ STUB DEMO MODE — not real tumor AI. The overlay and 3D shape are rough "
-            "heuristics for testing the UI only. Configure MONAI on RunPod for real brain MRI."
-        )
-
     lines.extend(
         [
             f"I built a 3D volume from {result.slice_count} slice(s) ({result.modality.replace('_', ' ')}). "

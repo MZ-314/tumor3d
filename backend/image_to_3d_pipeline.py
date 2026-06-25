@@ -1,4 +1,4 @@
-"""Single-image AI → 3D mesh (TripoSR or CPU relief stub)."""
+"""Single-image AI → 3D mesh via TripoSR on GPU."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from pathlib import Path
 
 from config_reconstruction import IMAGE3D_BACKEND, Image3DError
 from pipeline.image_to_3d.image_preflight import validate_ai_3d_input
-from pipeline.image_to_3d.stub_mesh import build_relief_mesh_glb
 from pipeline.image_to_3d.triposr_infer import run_triposr, triposr_available
 from services.groq_assistant import build_assistant_summary
 from shared.schemas.pydantic.common import AccuracyTier
@@ -25,6 +24,17 @@ async def process_image_to_3d(
     reconstruction_id = work_dir.name
     backend = (backend or IMAGE3D_BACKEND).lower()
 
+    if backend != "triposr":
+        raise Image3DError(
+            f"IMAGE3D_BACKEND={backend} is not supported. Use IMAGE3D_BACKEND=triposr on RunPod GPU."
+        )
+    if not triposr_available():
+        raise Image3DError(
+            "TripoSR is not installed. On RunPod run:\n"
+            "  python backend/scripts/setup_triposr.py\n"
+            "  export IMAGE3D_BACKEND=triposr"
+        )
+
     source_path = work_dir / "source.png"
     if not source_path.exists():
         from PIL import Image
@@ -35,14 +45,10 @@ async def process_image_to_3d(
 
     scene_path = work_dir / f"{reconstruction_id}_scene.glb"
 
-    def _build_mesh() -> str:
-        if backend == "triposr" and triposr_available():
-            run_triposr(image_path, work_dir, scene_path)
-            return "triposr"
-        build_relief_mesh_glb(image_path, scene_path)
-        return "relief_stub"
+    def _build_mesh() -> None:
+        run_triposr(image_path, work_dir, scene_path)
 
-    effective_backend = await asyncio.to_thread(_build_mesh)
+    await asyncio.to_thread(_build_mesh)
 
     base = "/static"
     disclaimer = (
@@ -50,11 +56,6 @@ async def process_image_to_3d(
         "Shape and hidden surfaces are model guesses — not anatomy. "
         "For real medical volumes, upload a DICOM series instead. Not for clinical use."
     )
-    if effective_backend == "relief_stub":
-        disclaimer = (
-            "STUB AI 3D (CPU): simple relief extrusion for UI testing only. "
-            "On RunPod install TripoSR for real image-to-3D. Not for clinical use."
-        )
 
     response = ReconstructResponse(
         reconstruction_id=reconstruction_id,
@@ -71,7 +72,7 @@ async def process_image_to_3d(
         modality="ai_3d",
         pipeline_type="ai_3d",
         geometry_source="ai_generated",
-        segmentation_backend=effective_backend,
+        segmentation_backend="triposr",
         lesions=[],
         assistant_summary="",
         disclaimer=disclaimer,

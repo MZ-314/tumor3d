@@ -23,10 +23,12 @@ from fastapi.staticfiles import StaticFiles
 from api.pipeline_routing import resolve_pipeline
 from api.reconstruct_jobs import get_job, should_run_async, start_job
 from config_medical import DATA_DIR, MedicalPipelineError, SEGMENTATION_BACKEND, ensure_data_dirs
-from config_reconstruction import IMAGE3D_BACKEND, TRIPOSR_DIR
+from config_pipeline import PIPELINE_VERSION
 from db.database import add_message, create_chat, get_chat, init_db, list_chats, touch_chat
+from db.jobs import init_jobs_db
 from image_to_3d_pipeline import process_image_to_3d
-from medical_pipeline import process_medical_slices
+from config_reconstruction import IMAGE3D_BACKEND, TRIPOSR_DIR
+from pipeline.reconstruct import run_reconstruction_pipeline
 from pipeline.image_to_3d.triposr_infer import triposr_available
 from shared.schemas.pydantic.reconstruct import ChatDetail, ChatSummary, ReconstructResponse
 
@@ -37,12 +39,14 @@ logging.basicConfig(
 
 ensure_data_dirs()
 init_db()
+init_jobs_db()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_data_dirs()
     init_db()
+    init_jobs_db()
     yield
 
 
@@ -64,6 +68,7 @@ def health() -> dict[str, str | bool]:
     return {
         "status": "ok",
         "pipeline": "meddollina_3d",
+        "reconstruct_pipeline_version": PIPELINE_VERSION,
         "image3d_backend": IMAGE3D_BACKEND,
         "triposr_ready": triposr_available(),
         "segmentation_backend": SEGMENTATION_BACKEND,
@@ -196,7 +201,7 @@ async def reconstruct(
                 user_text=text,
             )
         else:
-            result = await process_medical_slices(
+            result = await run_reconstruction_pipeline(
                 slice_paths,
                 work_dir,
                 modality=modality,
@@ -230,7 +235,14 @@ async def reconstruct_job_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status == "processing":
-        return {"status": "processing", "job_id": job_id, "slice_count": job.slice_count}
+        payload: dict[str, object] = {
+            "status": "processing",
+            "job_id": job_id,
+            "slice_count": job.slice_count,
+        }
+        if job.stage:
+            payload["stage"] = job.stage
+        return payload
     if job.status == "error":
         return {"status": "error", "job_id": job_id, "detail": job.error or "Processing failed"}
     return job.result

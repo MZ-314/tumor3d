@@ -8,12 +8,10 @@ alwaysApply: true
 
 **Secondary:** DICOM series → real volume viewer (NiiVue).
 
-**Optional:** Brain MRI tumor segmentation (MONAI BraTS) — not the core product story.
-
-Stack: Python 3.11+, FastAPI, TripoSR, React + Three.js (+ NiiVue for volumes), SQLite chat.
+**Medical reconstruction:** MedSAM + MONAI BraTS + atlas on **RunPod GPU** — no CPU stub backends.
 
 Rules:
 - AI-generated geometry must be labeled in API responses and UI (`geometry_source`, disclaimer).
 - Type hints are mandatory. Errors raise explicitly — never swallowed silently.
 - `/shared/schemas` is the source of truth for API contracts.
-- Inference requires NVIDIA GPU (~6GB+ VRAM for TripoSR); develop on laptop with stub, run on RunPod.
+- Inference requires NVIDIA GPU on RunPod; MedSAM, MONAI, TripoSR, and atlas registration are mandatory for brain MRI.

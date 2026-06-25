@@ -22,7 +22,9 @@ set PYTHONPATH=.   # Windows
 uvicorn backend.api.main:app --reload --port 8000
 ```
 
-`IMAGE3D_BACKEND=relief_stub` on CPU laptop (simple relief mesh). TripoSR on GPU — see RunPod below.
+`IMAGE3D_BACKEND=triposr` on RunPod GPU. No CPU fallback — TripoSR required for AI 3D mode.
+
+Medical brain MRI: **MedSAM + MONAI + atlas** on RunPod (see setup below). No stub backends.
 
 ## Quick start — frontend
 
@@ -39,10 +41,15 @@ cd /workspace/tumor3d/backend
 pip install -e ".[dev,gpu,dicom]"
 pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
 
-# AI 2D→3D
+# AI 2D→3D + medical reconstruction (GPU)
 python scripts/setup_triposr.py
-pip install onnxruntime xatlas==0.0.9 moderngl
+python scripts/setup_monai_bundle.py
+python scripts/setup_medsam.py
+python scripts/setup_brain_atlas.py
+pip install git+https://github.com/facebookresearch/segment-anything.git
+pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK
 export IMAGE3D_BACKEND=triposr
+export SEGMENTATION_BACKEND=monai
 export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
 
 # Optional brain tumor AI
