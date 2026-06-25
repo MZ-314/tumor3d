@@ -109,10 +109,11 @@ def build_lesion_geometries(
 
     for lesion in lesions:
         mask3d = lesion.mask
-        if slice_count == 1:
+        if mask3d.shape[0] == 1:
             mask2d = mask3d[0]
-            mask3d = _extrude_mask(mask2d, SINGLE_SLICE_DEPTH_VOXELS)
-            sz_eff = DEFAULT_SLICE_THICKNESS_MM
+            depth = max(volume.data.shape[0], SINGLE_SLICE_DEPTH_VOXELS)
+            mask3d = _extrude_mask(mask2d, depth)
+            sz_eff = sz if slice_count > 1 else sz
         else:
             mask2d = mask3d.max(axis=0)
             sz_eff = sz

@@ -45,7 +45,7 @@ def test_atlas_synthesis_anchor_matches_patient(tmp_path: Path, monkeypatch: pyt
         organ_mask_2d=mask,
     )
 
-    assert strategy.startswith("single_slice_atlas_anchored")
+    assert strategy.startswith("single_slice") or strategy.startswith("registered_atlas")
     assert synth.shape == (48, 32, 32)
     anchor = 48 // 2
     assert float(np.mean(np.abs(synth[anchor] - patient))) < 0.05

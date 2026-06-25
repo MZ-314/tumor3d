@@ -94,6 +94,23 @@ def segment_organ_2d(slice_img: np.ndarray) -> tuple[np.ndarray, float]:
     best_idx = int(np.argmax(scores))
     mask = masks[best_idx].astype(bool)
     confidence = float(scores[best_idx])
+
+    # Second pass: tight bbox from first mask for cleaner brain boundary
+    rows, cols = np.where(mask)
+    if rows.size > 0:
+        pad = max(4, int(min(h, w) * 0.02))
+        y0 = max(0, int(rows.min()) - pad)
+        y1 = min(h, int(rows.max()) + pad)
+        x0 = max(0, int(cols.min()) - pad)
+        x1 = min(w, int(cols.max()) + pad)
+        tight_box = np.array([x0, y0, x1, y1])
+        masks2, scores2, _ = predictor.predict(box=tight_box, multimask_output=True)
+        if masks2 is not None and len(masks2) > 0:
+            idx2 = int(np.argmax(scores2))
+            if float(scores2[idx2]) >= confidence * 0.85:
+                mask = masks2[idx2].astype(bool)
+                confidence = float(scores2[idx2])
+
     return mask, confidence
 
 

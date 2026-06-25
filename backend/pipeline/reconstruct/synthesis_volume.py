@@ -10,7 +10,7 @@ from scipy.ndimage import zoom
 from pipeline.export.nifti_export import save_mask_nifti, save_volume_nifti
 from pipeline.ingest.images import SliceVolume
 from pipeline.segment.backends import LesionMask
-from shared.schemas.pydantic.pipeline import MriView, SynthesisResult
+from shared.schemas.pydantic.pipeline import AtlasWarpResult, MriView, SynthesisResult
 
 
 def _target_depth(slice_count: int, slice_thickness_mm: float) -> int:
@@ -34,6 +34,8 @@ def synthesize_volume(
     anchor_indices: list[int],
     organ_mask_2d: np.ndarray | None = None,
     mri_view: object | None = None,
+    atlas_warp: object | None = None,
+    work_dir: Path | None = None,
 ) -> tuple[SynthesisResult, SliceVolume]:
     """
     Build a 3D intensity volume from uploaded slices.
@@ -53,11 +55,14 @@ def synthesize_volume(
         from pipeline.reconstruct.atlas_synthesis import synthesize_atlas_anchored_volume
 
         view = mri_view if isinstance(mri_view, MriView) else MriView.UNKNOWN
+        warp = atlas_warp if isinstance(atlas_warp, AtlasWarpResult) else None
         synth, strategy = synthesize_atlas_anchored_volume(
             volume,
             target_z=target_z,
             organ_mask_2d=organ_mask_2d,
             mri_view=view,
+            atlas_warp=warp,
+            work_dir=work_dir,
         )
         synthetic_count = target_z - 1
     else:

@@ -56,6 +56,12 @@ def build_organ_mesh_scene(
         box.export(scene_path)
         return scene_path
 
+    if len(mesh.faces) > 100_000:
+        try:
+            mesh = mesh.simplify_quadric_decimation(100_000)
+        except Exception:
+            pass
+
     try:
         mesh.visual.face_colors = [120, 160, 200, 220]
     except Exception:
