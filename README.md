@@ -36,26 +36,17 @@ npm run dev
 
 ## RunPod (GPU)
 
+### Every restart (pod already set up)
+
+```bash
+bash /workspace/tumor3d/backend/scripts/runpod_restart.sh
+```
+
+Or copy-paste:
+
 ```bash
 cd /workspace/tumor3d
 git pull origin main
-
-# Option A — full bootstrap script (deps + models + ML train + API)
-bash backend/scripts/runpod_start.sh
-
-# Option B — manual steps
-cd /workspace/tumor3d/backend
-pip install -e ".[dev,gpu,dicom]"
-pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
-pip install git+https://github.com/facebookresearch/segment-anything.git
-pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK
-
-cd /workspace/tumor3d
-python backend/scripts/setup_triposr.py
-python backend/scripts/setup_monai_bundle.py
-python backend/scripts/setup_medsam.py
-python backend/scripts/setup_brain_atlas.py
-python backend/scripts/setup_ml_brain_recon.py   # ML single-slice 3D (~5–15 min GPU)
 
 export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
 export DATA_DIR=/workspace/tumor3d/data
@@ -69,7 +60,54 @@ export ML_VOLUME_MODEL_DIR=/workspace/tumor3d/models/brain_recon
 uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-`pip install` must run from `backend/` (installs `uvicorn`, `pydantic`, `torch`, etc.). Without it, `python` and `uvicorn` will not find project dependencies.
+Verify (second terminal):
+
+```bash
+curl -s http://localhost:8000/health | python -m json.tool
+```
+
+Expect: `triposr_ready: true`, `synthesis_backend: "ml"`, `ml_volume_generator_ready: true`, `ml_volume_refiner_ready: true`.
+
+### First-time / fresh pod (deps + models + ML train)
+
+```bash
+cd /workspace/tumor3d
+git pull origin main
+bash backend/scripts/runpod_start.sh
+```
+
+Or manual:
+
+```bash
+cd /workspace/tumor3d
+git pull origin main
+
+cd /workspace/tumor3d/backend
+pip install -e ".[dev,gpu,dicom]"
+pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
+pip install git+https://github.com/facebookresearch/segment-anything.git
+pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK
+
+cd /workspace/tumor3d
+python backend/scripts/setup_triposr.py
+python backend/scripts/setup_monai_bundle.py
+python backend/scripts/setup_medsam.py
+python backend/scripts/setup_brain_atlas.py
+python backend/scripts/setup_ml_brain_recon.py
+
+export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
+export DATA_DIR=/workspace/tumor3d/data
+export SEGMENTATION_BACKEND=monai
+export IMAGE3D_BACKEND=triposr
+export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
+export ATLAS_BRAIN_DIR=/workspace/tumor3d/data/atlases/brain
+export SYNTHESIS_BACKEND=ml
+export ML_VOLUME_MODEL_DIR=/workspace/tumor3d/models/brain_recon
+
+uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+```
+
+`pip install` must run from `backend/` on a fresh pod. `runpod_restart.sh` skips install when deps are already present.
 
 `GET /health` should show `"triposr_ready": true` for real AI 3D.
 
