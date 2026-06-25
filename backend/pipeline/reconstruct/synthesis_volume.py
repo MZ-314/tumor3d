@@ -35,7 +35,6 @@ def synthesize_volume(
     organ_mask_2d: np.ndarray | None = None,
     mri_view: object | None = None,
     atlas_warp: object | None = None,
-    work_dir: Path | None = None,
 ) -> tuple[SynthesisResult, SliceVolume]:
     """
     Build a 3D intensity volume from uploaded slices.
