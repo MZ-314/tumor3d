@@ -14,9 +14,16 @@ sys.path.insert(0, str(BACKEND))
 
 from config_pipeline import MEDSAM_CHECKPOINT  # noqa: E402
 
-MEDSAM_URL = (
-    "https://github.com/bowang-lab/MedSAM/raw/main/work_dir/MedSAM/medsam_vit_b.pth"
+# Official MedSAM weights (Zenodo) — GitHub raw URL is no longer valid.
+MEDSAM_ZENODO_URL = "https://zenodo.org/records/10689643/files/medsam_vit_b.pth"
+MEDSAM_HF_URL = (
+    "https://huggingface.co/GleghornLab/medsam-vit-b/resolve/main/medsam_vit_b.pth"
 )
+
+
+def _download(url: str, dest: Path) -> None:
+    print(f"Trying {url} …")
+    urllib.request.urlretrieve(url, dest)
 
 
 def main() -> int:
@@ -26,18 +33,56 @@ def main() -> int:
         return 0
 
     print(f"Downloading MedSAM to {MEDSAM_CHECKPOINT} …")
-    try:
-        urllib.request.urlretrieve(MEDSAM_URL, MEDSAM_CHECKPOINT)
-    except Exception as exc:
-        print(f"FAIL: {exc}", file=sys.stderr)
-        print("Also install: pip install git+https://github.com/facebookresearch/segment-anything.git")
-        return 1
+    errors: list[str] = []
 
-    print("OK: MedSAM ready")
+    try:
+        from huggingface_hub import hf_hub_download
+
+        path = hf_hub_download(
+            repo_id="GleghornLab/medsam-vit-b",
+            filename="medsam_vit_b.pth",
+            local_dir=str(MEDSAM_CHECKPOINT.parent),
+        )
+        downloaded = Path(path)
+        if downloaded.resolve() != MEDSAM_CHECKPOINT.resolve():
+            downloaded.replace(MEDSAM_CHECKPOINT)
+        print("OK: MedSAM ready (Hugging Face)")
+        _print_next_steps()
+        return 0
+    except Exception as exc:
+        errors.append(f"Hugging Face: {exc}")
+
+    for url in (MEDSAM_ZENODO_URL, MEDSAM_HF_URL):
+        try:
+            _download(url, MEDSAM_CHECKPOINT)
+            if MEDSAM_CHECKPOINT.stat().st_size < 1_000_000:
+                raise OSError("download too small — likely an error page")
+            print(f"OK: MedSAM ready ({url})")
+            _print_next_steps()
+            return 0
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+            MEDSAM_CHECKPOINT.unlink(missing_ok=True)
+
+    print("FAIL: could not download MedSAM checkpoint.", file=sys.stderr)
+    for line in errors:
+        print(f"  - {line}", file=sys.stderr)
+    print(
+        "\nManual: wget -O "
+        f"{MEDSAM_CHECKPOINT} {MEDSAM_ZENODO_URL}",
+        file=sys.stderr,
+    )
+    print(
+        "Also: pip install git+https://github.com/facebookresearch/segment-anything.git",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _print_next_steps() -> None:
     print("Next:")
     print("  pip install git+https://github.com/facebookresearch/segment-anything.git")
     print("  export SEGMENTATION_BACKEND=monai")
-    return 0
 
 
 if __name__ == "__main__":
