@@ -28,7 +28,7 @@ from api.pipeline_routing import (
 )
 from api.reconstruct_jobs import get_job, should_run_async, start_job
 from config_medical import DATA_DIR, MedicalPipelineError, SEGMENTATION_BACKEND, ensure_data_dirs
-from config_pipeline import PIPELINE_VERSION
+from config_pipeline import ML_VOLUME_MODEL_DIR, PIPELINE_VERSION, SYNTHESIS_BACKEND
 from db.database import add_message, create_chat, get_chat, init_db, list_chats, touch_chat
 from db.jobs import init_jobs_db
 from image_to_3d_pipeline import process_image_to_3d
@@ -70,6 +70,7 @@ app.mount("/static", StaticFiles(directory=str(DATA_DIR)), name="static")
 
 @app.get("/health")
 def health() -> dict[str, str | bool]:
+    ml_ckpt = ML_VOLUME_MODEL_DIR / "volume_generator.pt"
     return {
         "status": "ok",
         "pipeline": "meddollina_3d",
@@ -77,6 +78,8 @@ def health() -> dict[str, str | bool]:
         "image3d_backend": IMAGE3D_BACKEND,
         "triposr_ready": triposr_available(),
         "segmentation_backend": SEGMENTATION_BACKEND,
+        "synthesis_backend": SYNTHESIS_BACKEND,
+        "ml_volume_generator_ready": ml_ckpt.is_file(),
     }
 
 
