@@ -93,12 +93,8 @@ export function NiivueVolumeViewer({
         if (cancelled) return;
 
         if (nv.volumes.length > 0) {
-          const vol = nv.volumes[0];
-          const robustMin = nv.getPercentile(vol, 2);
-          const robustMax = nv.getPercentile(vol, 98);
-          if (Number.isFinite(robustMin) && Number.isFinite(robustMax) && robustMax > robustMin) {
-            nv.setVolume(vol, { cal_min: robustMin, cal_max: robustMax });
-          }
+          // NVImage.calMinMax sets robust 2nd–98th percentile window (not Niivue.getPercentile).
+          nv.volumes[0].calMinMax(Number.POSITIVE_INFINITY, false);
         }
 
         nv.setSliceType(nv.sliceTypeMultiplanar);
