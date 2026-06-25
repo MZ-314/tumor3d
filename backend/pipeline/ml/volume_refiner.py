@@ -9,7 +9,7 @@ import numpy as np
 from scipy.ndimage import zoom
 
 from config_pipeline import ML_VOLUME_MODEL_DIR
-from pipeline.ml.brain_envelope import apply_brain_envelope, build_brain_envelope_3d
+from pipeline.ml.brain_envelope import apply_volume_mask, build_extruded_mask_3d
 
 logger = logging.getLogger(__name__)
 
@@ -30,23 +30,22 @@ def refine_volume_3d(
     background: float,
 ) -> tuple[np.ndarray, bool]:
     """
-    Run 3D U-Net refiner if checkpoint exists; always apply ellipsoid brain mask.
+    Optional 3D U-Net refiner on ML-generated intensities.
 
-    Returns (volume, refiner_applied).
+    Shape comes from learned voxels, not a geometric dome mask.
     """
     z_count, h, w = volume.shape
-    envelope = build_brain_envelope_3d((z_count, h, w), organ_mask_2d, anchor_z)
-    masked = apply_brain_envelope(
-        volume,
-        envelope,
-        anchor_z=anchor_z,
-        anchor_plane=anchor_plane,
-        background=background,
-    )
+    extruded = build_extruded_mask_3d((z_count, h, w), organ_mask_2d, anchor_z)
 
     ckpt = _resolve_refiner_checkpoint()
     if ckpt is None:
-        return masked, False
+        return apply_volume_mask(
+            volume,
+            extruded,
+            anchor_z=anchor_z,
+            anchor_plane=anchor_plane,
+            background=background,
+        ), False
 
     import torch
 
@@ -56,16 +55,16 @@ def refine_volume_3d(
     model, _version = load_volume_refiner_checkpoint(ckpt, device=device)
 
     coarse_cube = zoom(
-        masked.astype(np.float32),
+        volume.astype(np.float32),
         (REFINER_CUBE / z_count, REFINER_CUBE / h, REFINER_CUBE / w),
         order=1,
     )
-    env_cube = zoom(
-        envelope,
+    mask_cube = zoom(
+        extruded,
         (REFINER_CUBE / z_count, REFINER_CUBE / h, REFINER_CUBE / w),
-        order=1,
+        order=0,
     )
-    inp = np.stack([coarse_cube, env_cube], axis=0).astype(np.float32)
+    inp = np.stack([coarse_cube, mask_cube], axis=0).astype(np.float32)
     tensor = torch.from_numpy(inp).unsqueeze(0).to(device)
 
     with torch.no_grad():
@@ -76,9 +75,9 @@ def refine_volume_3d(
         (z_count / REFINER_CUBE, h / REFINER_CUBE, w / REFINER_CUBE),
         order=1,
     ).astype(np.float32)
-    refined = apply_brain_envelope(
+    refined = apply_volume_mask(
         refined,
-        envelope,
+        extruded,
         anchor_z=anchor_z,
         anchor_plane=anchor_plane,
         background=background,

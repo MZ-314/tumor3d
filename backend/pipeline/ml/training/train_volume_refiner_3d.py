@@ -13,7 +13,7 @@ from scipy.ndimage import gaussian_filter, zoom
 from torch.utils.data import DataLoader, Dataset
 
 from config_pipeline import ATLAS_BRAIN_TEMPLATE, ML_VOLUME_MODEL_DIR
-from pipeline.ml.brain_envelope import build_brain_envelope_3d
+from pipeline.ml.brain_envelope import build_extruded_mask_3d
 from pipeline.ml.models.volume_refiner_3d import BrainVolumeRefiner3D
 from pipeline.ml.training.dataset import load_brain_volume_nifti
 
@@ -49,7 +49,7 @@ class VolumeRefinerDataset(Dataset):
             for _ in range(48):
                 anchor_z = int(np.random.randint(cube_size // 4, 3 * cube_size // 4))
                 mask2d = vol[anchor_z] > np.percentile(vol[anchor_z], 35)
-                envelope = build_brain_envelope_3d(vol.shape, mask2d, anchor_z)
+                envelope = build_extruded_mask_3d(vol.shape, mask2d, anchor_z)
                 coarse = _coarse_from_anchor(vol, anchor_z)
                 coarse = coarse * envelope
                 self.items.append(

@@ -9,7 +9,7 @@ import trimesh
 from scipy.ndimage import gaussian_filter
 
 from pipeline.ingest.images import SliceVolume
-from pipeline.ml.brain_envelope import build_brain_envelope_3d
+from pipeline.ml.brain_envelope import build_extruded_mask_3d
 
 
 def build_organ_mesh_scene(
@@ -19,14 +19,16 @@ def build_organ_mesh_scene(
     *,
     organ_mask_2d: np.ndarray | None = None,
 ) -> Path:
-    """Marching-cubes organ shell from atlas-guided volume (single-slice USP demo)."""
+    """Marching-cubes shell from ML volume intensities (not a geometric dome)."""
     output_dir.mkdir(parents=True, exist_ok=True)
     data = volume.data.astype(np.float32)
     z_count, h, w = data.shape
     sy, sx = volume.pixel_spacing_mm
     sz = volume.slice_thickness_mm
     spacing = (sz, sy, sx)
+    anchor = z_count // 2
 
+    field = data
     if organ_mask_2d is not None:
         mask2d = np.asarray(organ_mask_2d, dtype=bool)
         if mask2d.shape != (h, w):
@@ -36,23 +38,24 @@ def build_organ_mesh_scene(
                 zoom(mask2d.astype(np.float32), (h / mask2d.shape[0], w / mask2d.shape[1]), order=0)
                 > 0.5
             )
-        anchor = z_count // 2
-        mask3d = build_brain_envelope_3d((z_count, h, w), mask2d, anchor) > 0.35
-        mask3d[anchor] = mask2d
-        field = gaussian_filter(mask3d.astype(np.float32), sigma=(1.2, 1.0, 1.0))
-    else:
-        field = gaussian_filter(data, sigma=(0.8, 1.0, 1.0))
+        mask3d = build_extruded_mask_3d((z_count, h, w), mask2d, anchor)
+        field = data * mask3d
 
-    level = float(np.percentile(field, 55))
+    field = gaussian_filter(field, sigma=(0.9, 0.8, 0.8))
+    level = float(np.percentile(field[field > 0.05], 50)) if (field > 0.05).any() else 0.2
     mesh = _isosurface_mesh(field, spacing, level=level)
     if mesh is None:
         mesh = _isosurface_mesh(data, spacing, level=0.2)
     if mesh is None:
         scene_path = output_dir / f"{reconstruction_id}_scene.glb"
-        box = trimesh.creation.box(extents=[w * sx, h * sy, z_count * sz])
-        box.apply_translation([w * sx / 2, h * sy / 2, z_count * sz / 2])
-        box.export(scene_path)
-        return scene_path
+        # Last resort: thin slab from 2D mask extrusion, not a box or sphere
+        if organ_mask_2d is not None:
+            mask3d = build_extruded_mask_3d((z_count, h, w), mask2d, anchor)
+            mesh = _isosurface_mesh(mask3d.astype(np.float32), spacing, level=0.4)
+        if mesh is None:
+            box = trimesh.creation.box(extents=[w * sx, h * sy, z_count * sz])
+            box.apply_translation([w * sx / 2, h * sy / 2, z_count * sz / 2])
+            mesh = box
 
     if len(mesh.faces) > 100_000:
         try:

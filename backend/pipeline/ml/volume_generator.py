@@ -9,7 +9,7 @@ import numpy as np
 from scipy.ndimage import binary_closing, binary_fill_holes, gaussian_filter, zoom
 
 from config_pipeline import ML_POSE_CHECKPOINT, ML_VOLUME_MODEL_DIR
-from pipeline.ml.brain_envelope import apply_brain_envelope, build_brain_envelope_3d
+from pipeline.ml.brain_envelope import apply_volume_mask, build_extruded_mask_3d
 from pipeline.ml.pose import estimate_pose
 from pipeline.ml.types import PoseEstimate
 from pipeline.ml.preprocess import fit_organ_mask
@@ -46,14 +46,14 @@ def _prepare_plane(
     return stacked, mask
 
 
-def _brain_envelope(
+def _extruded_mask(
     organ_mask_2d: np.ndarray,
     target_z: int,
     anchor_z: int,
     h: int,
     w: int,
 ) -> np.ndarray:
-    return build_brain_envelope_3d((target_z, h, w), organ_mask_2d, anchor_z)
+    return build_extruded_mask_3d((target_z, h, w), organ_mask_2d, anchor_z)
 
 
 def _resolve_checkpoint(explicit: Path | None) -> Path | None:
@@ -92,7 +92,7 @@ def _generate_with_model(
     anchor_stack, _ = _prepare_plane(patient, mask2d, size=MODEL_SIZE)
 
     bg = float(np.median(patient[~mask2d])) if mask2d.any() else 0.0
-    envelope = _brain_envelope(mask2d.astype(np.float32), target_z, anchor_z, h, w)
+    extruded = _extruded_mask(mask2d.astype(np.float32), target_z, anchor_z, h, w)
 
     vol = np.zeros((target_z, h, w), dtype=np.float32)
     vol[anchor_z] = patient
@@ -114,7 +114,7 @@ def _generate_with_model(
             plane = zoom(plane, (h / MODEL_SIZE, w / MODEL_SIZE), order=1)
             vol[z] = plane
 
-    vol = vol * envelope + bg * (1.0 - envelope)
+    vol = vol * extruded + bg * (1.0 - extruded)
     vol[anchor_z] = patient
 
     # Depth-aware intensity prior from pose (soft, not atlas texture)
@@ -127,7 +127,7 @@ def _generate_with_model(
 
     vol = gaussian_filter(vol, sigma=(0.6, 0.3, 0.3))
     vol[anchor_z] = patient
-    vol = apply_brain_envelope(vol, envelope, anchor_z=anchor_z, anchor_plane=patient, background=bg)
+    vol = apply_volume_mask(vol, extruded, anchor_z=anchor_z, anchor_plane=patient, background=bg)
     vol[anchor_z] = patient
 
     vol, refiner_used = refine_volume_3d(
@@ -162,14 +162,14 @@ def _generate_propagation_fallback(
     else:
         mask2d = patient > np.percentile(patient, 35)
 
-    envelope = _brain_envelope(mask2d.astype(np.float32), target_z, anchor_z, h, w)
+    extruded = _extruded_mask(mask2d.astype(np.float32), target_z, anchor_z, h, w)
     bg = float(np.median(patient[~mask2d])) if mask2d.any() else 0.0
 
     vol = np.zeros((target_z, h, w), dtype=np.float32)
     vol[anchor_z] = patient
     for _ in range(6):
         blurred = gaussian_filter(vol, sigma=(2.5, 0.8, 0.8))
-        vol = blurred * envelope + bg * (1.0 - envelope)
+        vol = blurred * extruded + bg * (1.0 - extruded)
         vol[anchor_z] = patient
 
     return vol, f"ml_propagation_fallback_{pose.mri_view.value}"
