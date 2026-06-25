@@ -95,8 +95,6 @@ def _generate_with_model(
         mask2d = patient > np.percentile(patient, 35)
 
     anchor_stack, _ = _prepare_plane(patient, mask2d, size=MODEL_SIZE)
-    anchor_t = torch.from_numpy(anchor_stack[:1]).to(device)
-    mask_t = torch.from_numpy(anchor_stack[1:2]).to(device)
 
     bg = float(np.median(patient[~mask2d])) if mask2d.any() else 0.0
     envelope = _brain_envelope(mask2d.astype(np.float32), target_z, anchor_z)
@@ -110,8 +108,12 @@ def _generate_with_model(
             if z == anchor_z:
                 continue
             offset = float((z - anchor_z) / half)
-            offset_plane = torch.full((1, 1, MODEL_SIZE, MODEL_SIZE), offset, device=device)
-            inp = torch.cat([anchor_t, mask_t, offset_plane], dim=1)
+            offset_plane = np.full((1, MODEL_SIZE, MODEL_SIZE), offset, dtype=np.float32)
+            inp_np = np.concatenate(
+                [anchor_stack[:1], anchor_stack[1:2], offset_plane],
+                axis=0,
+            )
+            inp = torch.from_numpy(inp_np).unsqueeze(0).to(device)
             pred = model(inp)
             plane = pred.squeeze().cpu().numpy()
             plane = zoom(plane, (h / MODEL_SIZE, w / MODEL_SIZE), order=1)
