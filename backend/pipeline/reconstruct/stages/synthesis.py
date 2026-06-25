@@ -22,6 +22,12 @@ async def run_synthesis(state: PipelineState) -> None:
         )
 
         ctx = build_modular_context(state)
+        if not ctx.modules:
+            from pipeline.modular.orchestrator import run_modular_atlas_block, run_modular_perception
+
+            run_modular_perception(ctx)
+            run_modular_atlas_block(ctx)
+            apply_modular_context_to_state(state, ctx)
         ctx.blueprint = state.blueprint
         ctx.atlas_warp = state.atlas_warp
         run_modular_local_block(ctx)

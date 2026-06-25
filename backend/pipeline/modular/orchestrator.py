@@ -52,6 +52,12 @@ def build_modular_context(state: PipelineState) -> ModularContext:
         atlas_warp=state.atlas_warp,
         blueprint=state.blueprint,
         lesion_mask_2d=_lesion_mask_2d(state, anchor_z),
+        pose=state.pose,
+        modules=list(state.modular_modules),
+        graph=state.modular_graph,
+        structure_replacement=state.structure_replacement,
+        synthesis=state.synthesis,
+        output_volume=state.output_volume,
     )
 
 
@@ -106,6 +112,14 @@ def apply_modular_context_to_state(state: PipelineState, ctx: ModularContext) ->
         state.synthesis = ctx.synthesis
     if ctx.output_volume is not None:
         state.output_volume = ctx.output_volume
+    if ctx.modules:
+        state.modular_modules = ctx.modules
+    if ctx.graph is not None:
+        state.modular_graph = ctx.graph
+    if ctx.structure_replacement is not None:
+        state.structure_replacement = ctx.structure_replacement
+    if ctx.pose is not None:
+        state.pose = ctx.pose
     if ctx.assembly is not None:
         state.module_assembly = ctx.assembly
     if ctx.pose is not None:

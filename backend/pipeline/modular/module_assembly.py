@@ -38,6 +38,39 @@ def _build_tumor_mesh(ctx: ModularContext) -> trimesh.Trimesh | None:
     return mesh
 
 
+def _load_module_mesh(path: Path) -> trimesh.Trimesh | None:
+    if not path.is_file():
+        return None
+    try:
+        loaded = trimesh.load(path, force="scene")
+        if isinstance(loaded, trimesh.Scene):
+            if not loaded.geometry:
+                return None
+            return trimesh.util.concatenate(tuple(loaded.geometry.values()))
+        if isinstance(loaded, trimesh.Trimesh) and loaded.vertices.shape[0] > 0:
+            return loaded
+    except Exception:
+        return None
+    return None
+
+
+def _resolve_module_mesh_path(ctx: ModularContext, mod: AnatomicalModule) -> Path | None:
+    """Prefer job-local morphed/optimized mesh, then atlas pack."""
+    modules_dir = ctx.work_dir / "modules"
+    candidates = [
+        Path(mod.mesh_path),
+        modules_dir / f"{mod.module_id}_optimized.glb",
+        modules_dir / f"{mod.module_id}_propagated.glb",
+        modules_dir / f"{mod.module_id}_morphed.glb",
+        modules_dir / f"{mod.module_id}_warped.glb",
+        MODULAR_BRAIN_DIR / mod.module_id / "mesh.glb",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
 def run_module_assembly(ctx: ModularContext) -> ModuleAssemblyResult:
     out_dir = ctx.work_dir / "assembly"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -48,28 +81,33 @@ def run_module_assembly(ctx: ModularContext) -> ModuleAssemblyResult:
     final_modules: list[AnatomicalModule] = []
 
     for mod in ctx.modules:
-        path = Path(mod.mesh_path)
-        if not path.is_file():
-            fallback = MODULAR_BRAIN_DIR / mod.module_id / "mesh.glb"
-            path = fallback
-        if path.is_file():
-            mesh = trimesh.load(path, force="mesh")
-            if isinstance(mesh, trimesh.Scene):
-                mesh = trimesh.util.concatenate(tuple(mesh.geometry.values()))
-            scene.add_geometry(mesh, node_name=mod.module_id)
+        path = _resolve_module_mesh_path(ctx, mod)
+        if path is not None:
+            mesh = _load_module_mesh(path)
+            if mesh is not None:
+                scene.add_geometry(mesh, node_name=mod.module_id)
         meta_out = modules_json_dir / f"{mod.module_id}.json"
         meta_out.write_text(mod.model_dump_json(indent=2), encoding="utf-8")
         final_modules.append(
             mod.model_copy(
                 update={
                     "metadata_path": str(meta_out),
-                    "mesh_path": str(path) if path.is_file() else mod.mesh_path,
+                    "mesh_path": str(path) if path is not None else mod.mesh_path,
                 }
             )
         )
 
     root_glb = out_dir / f"{ctx.reconstruction_id}_Brain.glb"
-    scene.export(root_glb)
+    atlas_brain_glb = MODULAR_BRAIN_DIR / "Brain.glb"
+    if scene.geometry:
+        scene.export(root_glb)
+    elif atlas_brain_glb.is_file():
+        shutil.copy2(atlas_brain_glb, root_glb)
+    else:
+        raise RuntimeError(
+            "Modular assembly produced no geometry and atlas Brain.glb is missing. "
+            "Run: python backend/scripts/setup_brain_modules.py"
+        )
 
     tumor_glb_path: str | None = None
     tumor_mesh = _build_tumor_mesh(ctx)

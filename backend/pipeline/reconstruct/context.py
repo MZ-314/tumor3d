@@ -9,13 +9,17 @@ from pipeline.ingest.images import SliceVolume
 from pipeline.segment.backends import SegmentationResult
 from shared.schemas.pydantic.pipeline import (
     AnatomicalMap,
+    AnatomicalModule,
     AtlasWarpResult,
     ModelOutputs,
     ModuleAssemblyResult,
+    ModuleGraph,
     PipelineArtifacts,
+    PoseEstimate,
     ReconstructionBlueprint,
     ScanContext,
     StageTiming,
+    StructureReplacementResult,
     SynthesisResult,
     ValidationReport,
 )
@@ -42,6 +46,10 @@ class PipelineState:
     atlas_warp: AtlasWarpResult | None = None
     blueprint: ReconstructionBlueprint | None = None
     synthesis: SynthesisResult | None = None
+    modular_modules: list[AnatomicalModule] = field(default_factory=list)
+    modular_graph: ModuleGraph | None = None
+    structure_replacement: StructureReplacementResult | None = None
+    pose: PoseEstimate | None = None
     module_assembly: ModuleAssemblyResult | None = None
     validation: ValidationReport | None = None
     response: ReconstructResponse | None = None
