@@ -52,6 +52,21 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
       alert("Please upload PNG, JPEG, WebP, or DICOM slices.");
       return;
     }
+    if (modality === "ai_3d" && valid.some(isDicomFile)) {
+      const target: ScanModality = valid.length === 1 ? "brain_mri" : "volume_mri";
+      const label = target === "brain_mri" ? "Brain + tumor AI" : "DICOM volume";
+      const ok = window.confirm(
+        "DICOM detected. AI 3D mode is for everyday photos only (TripoSR), not medical scans.\n\n" +
+          `Switch to "${label}" and continue?`,
+      );
+      if (!ok) return;
+      onSend(valid, text.trim() || undefined, target);
+      setText("");
+      setPicked([]);
+      if (fileRef.current) fileRef.current.value = "";
+      if (folderRef.current) folderRef.current.value = "";
+      return;
+    }
     if (modality === "ai_3d" && valid.length !== 1) {
       alert("AI 3D mode uses one image. Switch to DICOM volume for multiple slices.");
       return;
@@ -123,7 +138,7 @@ export function ComposeBar({ onSend, disabled }: ComposeBarProps) {
       <input
         ref={fileRef}
         type="file"
-        accept={ACCEPT}
+        accept={modality === "ai_3d" ? "image/*,.jpg,.jpeg,.png,.webp" : ACCEPT}
         multiple={modality !== "ai_3d"}
         className="compose__file"
         id="scan-file"

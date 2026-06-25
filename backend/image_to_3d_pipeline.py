@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+from api.pipeline_routing import is_dicom_path
 from config_reconstruction import IMAGE3D_BACKEND, Image3DError
 from pipeline.image_to_3d.image_preflight import validate_ai_3d_input
 from pipeline.image_to_3d.triposr_infer import run_triposr, triposr_available
@@ -33,6 +34,12 @@ async def process_image_to_3d(
             "TripoSR is not installed. On RunPod run:\n"
             "  python backend/scripts/setup_triposr.py\n"
             "  export IMAGE3D_BACKEND=triposr"
+        )
+
+    if is_dicom_path(image_path):
+        raise Image3DError(
+            "DICOM cannot be used in AI 3D mode (everyday photos only). "
+            "Switch to Brain + tumor AI for one brain slice, or DICOM volume for a full series."
         )
 
     source_path = work_dir / "source.png"

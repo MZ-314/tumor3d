@@ -11,7 +11,7 @@ PIPELINE_MEDICAL_TUMOR = "medical_tumor"
 VOLUME_MODALITIES = frozenset({"knee_mri", "volume_mri", "other_mri"})
 
 
-def _is_dicom(path: Path) -> bool:
+def is_dicom_path(path: Path) -> bool:
     return path.suffix.lower() in {".dcm", ".dicom"}
 
 
@@ -28,10 +28,10 @@ def resolve_pipeline(modality: str, slice_paths: list[Path]) -> str:
         return PIPELINE_MEDICAL_VOLUME
 
     # Auto-detect from files
-    if slice_paths and all(_is_dicom(p) for p in slice_paths):
+    if slice_paths and all(is_dicom_path(p) for p in slice_paths):
         return PIPELINE_MEDICAL_TUMOR if modality == "brain_mri" else PIPELINE_MEDICAL_VOLUME
 
-    if len(slice_paths) == 1 and not _is_dicom(slice_paths[0]):
+    if len(slice_paths) == 1 and not is_dicom_path(slice_paths[0]):
         return PIPELINE_AI_3D
 
     return PIPELINE_MEDICAL_VOLUME

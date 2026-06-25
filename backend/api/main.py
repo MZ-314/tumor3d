@@ -20,7 +20,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.pipeline_routing import resolve_pipeline
+from api.pipeline_routing import (
+    PIPELINE_MEDICAL_TUMOR,
+    PIPELINE_MEDICAL_VOLUME,
+    is_dicom_path,
+    resolve_pipeline,
+)
 from api.reconstruct_jobs import get_job, should_run_async, start_job
 from config_medical import DATA_DIR, MedicalPipelineError, SEGMENTATION_BACKEND, ensure_data_dirs
 from config_pipeline import PIPELINE_VERSION
@@ -157,6 +162,15 @@ async def reconstruct(
     work_dir.mkdir(parents=True, exist_ok=True)
     slice_paths = await _read_uploads(images, work_dir)
     pipeline = resolve_pipeline(modality, slice_paths)
+
+    # DICOM in AI 3D mode is a common mistake — route to the medical pipeline.
+    if pipeline == "ai_3d" and slice_paths and is_dicom_path(slice_paths[0]):
+        if len(slice_paths) == 1:
+            pipeline = PIPELINE_MEDICAL_TUMOR
+            modality = "brain_mri"
+        else:
+            pipeline = PIPELINE_MEDICAL_VOLUME
+            modality = "volume_mri"
 
     if pipeline == "ai_3d" and len(slice_paths) != 1:
         raise HTTPException(
