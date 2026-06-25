@@ -10,7 +10,8 @@ import numpy as np
 from config_medical import MedicalPipelineError
 from config_pipeline import ATLAS_BRAIN_TEMPLATE, ATLAS_BRAIN_DIR
 from pipeline.ingest.images import SliceVolume
-from shared.schemas.pydantic.pipeline import AtlasWarpResult, OrganType
+from pipeline.reconstruct.view_orient import atlas_reference_slice, fit_atlas_plane_to_patient
+from shared.schemas.pydantic.pipeline import AtlasWarpResult, MriView, OrganType
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ def register_brain_atlas(
     *,
     work_dir: Path,
     anchor_z: int,
+    mri_view: MriView = MriView.UNKNOWN,
 ) -> AtlasWarpResult:
     template_path = _require_atlas_template()
 
@@ -49,13 +51,13 @@ def register_brain_atlas(
     patient_img.SetSpacing((col_sp, row_sp))
 
     atlas_img = sitk.ReadImage(str(template_path))
-    atlas_slice = sitk.GetArrayFromImage(atlas_img)
-    if atlas_slice.ndim == 3:
-        atlas_mid = atlas_slice.shape[0] // 2
-        atlas_2d = atlas_slice[atlas_mid].astype(np.float32)
+    atlas_vol = sitk.GetArrayFromImage(atlas_img).astype(np.float32)
+    if atlas_vol.ndim == 3:
+        atlas_2d = atlas_reference_slice(atlas_vol, mri_view)
+        atlas_2d = fit_atlas_plane_to_patient(atlas_2d, patient_slice, organ_mask_2d)
         atlas_spacing = atlas_img.GetSpacing()
     else:
-        atlas_2d = atlas_slice.astype(np.float32)
+        atlas_2d = atlas_vol.astype(np.float32)
         atlas_spacing = atlas_img.GetSpacing()
 
     fixed = sitk.GetImageFromArray(atlas_2d)
@@ -97,10 +99,17 @@ def run_atlas_for_organ(
     *,
     work_dir: Path,
     anchor_z: int,
+    mri_view: MriView = MriView.UNKNOWN,
 ) -> AtlasWarpResult:
     if organ_type != OrganType.BRAIN:
         raise MedicalPipelineError(
             f"Atlas matching for organ '{organ_type.value}' is not configured yet. "
             "Brain MRI is supported in v1."
         )
-    return register_brain_atlas(volume, organ_mask_2d, work_dir=work_dir, anchor_z=anchor_z)
+    return register_brain_atlas(
+        volume,
+        organ_mask_2d,
+        work_dir=work_dir,
+        anchor_z=anchor_z,
+        mri_view=mri_view,
+    )
