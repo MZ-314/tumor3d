@@ -37,30 +37,39 @@ npm run dev
 ## RunPod (GPU)
 
 ```bash
+cd /workspace/tumor3d
+git pull origin main
+
+# Option A — full bootstrap script (deps + models + ML train + API)
+bash backend/scripts/runpod_start.sh
+
+# Option B — manual steps
 cd /workspace/tumor3d/backend
 pip install -e ".[dev,gpu,dicom]"
 pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
-
-# AI 2D→3D + medical reconstruction (GPU)
-python scripts/setup_triposr.py
-python scripts/setup_monai_bundle.py
-python scripts/setup_medsam.py
-python scripts/setup_brain_atlas.py
 pip install git+https://github.com/facebookresearch/segment-anything.git
 pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK
-export IMAGE3D_BACKEND=triposr
-export SEGMENTATION_BACKEND=monai
-export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
 
-# Optional brain tumor AI
-python scripts/setup_monai_bundle.py
-export SEGMENTATION_BACKEND=monai
+cd /workspace/tumor3d
+python backend/scripts/setup_triposr.py
+python backend/scripts/setup_monai_bundle.py
+python backend/scripts/setup_medsam.py
+python backend/scripts/setup_brain_atlas.py
+python backend/scripts/setup_ml_brain_recon.py   # ML single-slice 3D (~5–15 min GPU)
 
 export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
 export DATA_DIR=/workspace/tumor3d/data
-cd /workspace/tumor3d
+export SEGMENTATION_BACKEND=monai
+export IMAGE3D_BACKEND=triposr
+export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
+export ATLAS_BRAIN_DIR=/workspace/tumor3d/data/atlases/brain
+export SYNTHESIS_BACKEND=ml
+export ML_VOLUME_MODEL_DIR=/workspace/tumor3d/models/brain_recon
+
 uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 ```
+
+`pip install` must run from `backend/` (installs `uvicorn`, `pydantic`, `torch`, etc.). Without it, `python` and `uvicorn` will not find project dependencies.
 
 `GET /health` should show `"triposr_ready": true` for real AI 3D.
 

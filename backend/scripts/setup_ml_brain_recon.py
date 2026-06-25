@@ -12,26 +12,38 @@ BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(BACKEND))
 
-from config_pipeline import ATLAS_BRAIN_TEMPLATE, ML_VOLUME_MODEL_DIR  # noqa: E402
+_INSTALL_HINT = (
+    "Python dependencies missing. On RunPod run:\n"
+    "  cd /workspace/tumor3d/backend\n"
+    '  pip install -e ".[dev,gpu,dicom]"\n'
+    "  pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg\n"
+    "  pip install git+https://github.com/facebookresearch/segment-anything.git\n"
+    "  pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK"
+)
+
+
+def _require_deps() -> None:
+    try:
+        import pydantic  # noqa: F401
+        import torch  # noqa: F401
+    except ImportError as exc:
+        raise SystemExit(_INSTALL_HINT) from exc
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    try:
-        import torch
-    except ImportError as exc:
-        raise SystemExit(
-            "PyTorch required for ML reconstruction. Install with:\n"
-            '  pip install -e ".[gpu]"'
-        ) from exc
+    _require_deps()
+
+    import torch
+
+    from config_pipeline import ATLAS_BRAIN_TEMPLATE, ML_VOLUME_MODEL_DIR
+    from pipeline.ml.training.train_volume_generator import train
 
     if not ATLAS_BRAIN_TEMPLATE.is_file():
         raise SystemExit(
             f"Brain atlas template missing at {ATLAS_BRAIN_TEMPLATE}\n"
             "Run first: python backend/scripts/setup_brain_atlas.py"
         )
-
-    from pipeline.ml.training.train_volume_generator import train
 
     out = ML_VOLUME_MODEL_DIR / "volume_generator.pt"
     if out.is_file():
