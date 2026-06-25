@@ -66,11 +66,10 @@ def register_brain_atlas(
     registration.SetMetricAsMattesMutualInformation()
     registration.SetInterpolator(sitk.sitkLinear)
     registration.SetOptimizerAsRegularStepGradientDescent(1.0, 1e-4, 200)
-    registration.SetInitialTransform(transform)
-    registration.SetFixedImage(fixed)
-    registration.SetMovingImage(patient_img)
+    registration.SetInitialTransform(transform, inPlace=False)
 
     try:
+        # SimpleITK 2.x: fixed/moving images are passed to Execute(), not SetFixedImage().
         final_transform = registration.Execute(fixed, patient_img)
         confidence = 0.65
     except Exception as exc:
