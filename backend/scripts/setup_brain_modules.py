@@ -238,6 +238,21 @@ def _region_mask(region: str, data: np.ndarray, brain: np.ndarray, ho_labels: np
     return brain
 
 
+def _decimate_mesh(mesh):
+    """Reduce face count; requires fast-simplification when available."""
+    import trimesh
+
+    target = max(500, len(mesh.faces) // 2)
+    try:
+        return mesh.simplify_quadric_decimation(target)
+    except (ImportError, ModuleNotFoundError, ValueError):
+        pass
+    try:
+        return mesh.simplify_quadric_decimation(target, aggression=7)
+    except Exception:
+        return mesh
+
+
 def _mask_to_mesh(mask: np.ndarray, spacing: tuple[float, float, float]):
     import trimesh
     from skimage import measure
@@ -257,8 +272,7 @@ def _mask_to_mesh(mask: np.ndarray, spacing: tuple[float, float, float]):
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=True)
     if mesh.vertices.shape[0] < 12:
         return None
-    mesh = mesh.simplify_quadric_decimation(max(500, len(mesh.faces) // 2))
-    return mesh
+    return _decimate_mesh(mesh)
 
 
 def _center_mesh(mesh) -> None:

@@ -20,7 +20,7 @@ cd /workspace/tumor3d/backend
 pip install -e ".[dev,gpu,dicom]"
 pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
 pip install git+https://github.com/facebookresearch/segment-anything.git
-pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK trimesh scikit-image nibabel
+pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK trimesh scikit-image nibabel fast-simplification
 
 cd /workspace/tumor3d
 echo "==> Model assets..."
