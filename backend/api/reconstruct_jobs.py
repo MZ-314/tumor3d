@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from api.pipeline_routing import PIPELINE_AI_3D
+from api.pipeline_routing import PIPELINE_AI_3D, PIPELINE_MEDICAL_TUMOR
 from config_medical import MedicalPipelineError
 from config_reconstruction import Image3DError
 from db.database import add_message, get_chat, touch_chat
@@ -33,7 +33,7 @@ JobStatus = Literal["processing", "done", "error"]
 
 
 def should_run_async(pipeline: str, slice_count: int) -> bool:
-    if pipeline == PIPELINE_AI_3D:
+    if pipeline in (PIPELINE_AI_3D, PIPELINE_MEDICAL_TUMOR):
         return True
     return slice_count >= ASYNC_SLICE_THRESHOLD
 

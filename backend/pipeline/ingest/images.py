@@ -40,6 +40,40 @@ def _load_png_array(path: Path) -> np.ndarray:
         return np.asarray(gray, dtype=np.float32) / 255.0
 
 
+def _rgb_to_grayscale(plane: np.ndarray) -> np.ndarray:
+    """Convert (H, W, 3+) RGB plane to grayscale."""
+    rgb = plane[..., :3].astype(np.float32)
+    return np.tensordot(rgb, [0.299, 0.587, 0.114], axes=([-1], [0]))
+
+
+def _dicom_to_grayscale_2d(arr: np.ndarray, ds) -> np.ndarray:
+    """Reduce pydicom pixel_array to 2D float32 (H, W)."""
+    if arr.ndim == 2:
+        return arr
+
+    if arr.ndim != 3:
+        raise ValueError(f"Unsupported DICOM pixel array shape {arr.shape}")
+
+    frames = int(getattr(ds, "NumberOfFrames", 0) or 0)
+    if frames > 1 and arr.shape[0] == frames:
+        return arr[frames // 2]
+
+    # RGB / RGBA stored as (rows, cols, channels)
+    if arr.shape[-1] in (3, 4) and arr.shape[-1] < arr.shape[0]:
+        return _rgb_to_grayscale(arr)
+
+    # Planar RGB: (channels, rows, cols)
+    if arr.shape[0] in (3, 4) and arr.shape[0] < min(arr.shape[1], arr.shape[2]):
+        plane = arr[:3, ...].transpose(1, 2, 0)
+        return _rgb_to_grayscale(plane)
+
+    # Heuristic: (frames, H, W) without NumberOfFrames metadata
+    if arr.shape[0] < arr.shape[1] and arr.shape[0] < arr.shape[2]:
+        return arr[arr.shape[0] // 2]
+
+    return arr.mean(axis=-1)
+
+
 def _load_dicom_slice(path: Path) -> _DicomSlice:
     import pydicom
 
@@ -55,6 +89,8 @@ def _load_dicom_slice(path: Path) -> _DicomSlice:
                 "Or: pip install python-gdcm"
             ) from exc
         raise
+
+    arr = _dicom_to_grayscale_2d(arr, ds)
 
     if hasattr(ds, "RescaleSlope") and hasattr(ds, "RescaleIntercept"):
         arr = arr * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
