@@ -60,6 +60,6 @@ def test_build_volume_locks_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         atlas_warp=None,
         work_dir=None,
     )
-    assert "registered_atlas" in strategy
+    assert "patient_primary" in strategy or "registered" in strategy
     assert synth.shape == (40, 48, 48)
     assert float(np.mean(np.abs(synth[20] - patient))) < 0.05

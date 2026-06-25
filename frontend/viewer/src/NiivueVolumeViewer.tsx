@@ -92,6 +92,15 @@ export function NiivueVolumeViewer({
         await nv.loadVolumes(volumes);
         if (cancelled) return;
 
+        if (nv.volumes.length > 0) {
+          const vol = nv.volumes[0];
+          const robustMin = nv.getPercentile(vol, 2);
+          const robustMax = nv.getPercentile(vol, 98);
+          if (Number.isFinite(robustMin) && Number.isFinite(robustMax) && robustMax > robustMin) {
+            nv.setVolume(vol, { cal_min: robustMin, cal_max: robustMax });
+          }
+        }
+
         nv.setSliceType(nv.sliceTypeMultiplanar);
         nv.setMultiplanarLayout(2);
         nv.updateGLVolume();
@@ -140,7 +149,7 @@ export function NiivueVolumeViewer({
       {status === "ready" && (
         <p className="niivue-hint">
           {sliceCount < 10
-            ? "Thin stack — drag crosshair to move slice planes (upload more DICOM for full brain)"
+            ? "AI-predicted brain volume — drag crosshair to explore slices (anchor = your upload)"
             : "Drag crosshair to slice · scroll to zoom · right panel = 3D volume"}
         </p>
       )}

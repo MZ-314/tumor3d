@@ -7,14 +7,11 @@ from pathlib import Path
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, zoom
-from skimage import exposure
 
 from config_pipeline import ATLAS_BRAIN_TEMPLATE
 from pipeline.ingest.images import SliceVolume
-from pipeline.reconstruct.view_orient import (
-    build_brain_envelope,
-    orient_atlas_volume,
-)
+from pipeline.reconstruct.patient_shape_volume import build_patient_primary_volume
+from pipeline.reconstruct.view_orient import orient_atlas_volume
 from shared.schemas.pydantic.pipeline import AtlasWarpResult, MriView
 
 logger = logging.getLogger(__name__)
@@ -155,7 +152,14 @@ def build_registered_atlas_volume(
 
     atlas = load_oriented_atlas(mri_view)
     if atlas is None:
-        return _fallback_expansion(patient_norm, target_z), "single_slice_fallback", 0
+        synth, strategy = build_patient_primary_volume(
+            patient_norm,
+            target_z=target_z,
+            organ_mask_2d=mask,
+            mri_view=mri_view,
+            atlas_hint=None,
+        )
+        return synth, strategy, 0
 
     best_i = (
         atlas_warp.estimated_slice_index
@@ -176,59 +180,29 @@ def build_registered_atlas_volume(
         )
 
     anchor_z = target_z // 2
-    synth = np.zeros((target_z, h, w), dtype=np.float32)
+    atlas_synth = np.zeros((target_z, h, w), dtype=np.float32)
 
     for out_z in range(target_z):
         delta = out_z - anchor_z
         src_i = best_i + delta
         if 0 <= src_i < az:
-            synth[out_z] = warped_stack[src_i]
+            atlas_synth[out_z] = warped_stack[src_i]
         elif src_i < 0:
-            synth[out_z] = warped_stack[0]
+            atlas_synth[out_z] = warped_stack[0]
         else:
-            synth[out_z] = warped_stack[az - 1]
+            atlas_synth[out_z] = warped_stack[az - 1]
 
-    # Lock measured anchor — patient slice is ground truth on this plane
-    synth[anchor_z] = patient_norm
+    # Patient-primary volume (looks like the upload); atlas is weak depth hint only
+    synth, strategy = build_patient_primary_volume(
+        patient_norm,
+        target_z=target_z,
+        organ_mask_2d=mask,
+        mri_view=mri_view,
+        atlas_hint=atlas_synth,
+    )
 
-    # Harmonize off-slice intensity to patient (inside brain ROI)
-    if mask is not None and mask.any():
-        bg = float(np.median(patient_norm[~mask]))
-        for z in range(target_z):
-            if z == anchor_z:
-                continue
-            matched = exposure.match_histograms(synth[z], patient_norm, channel_axis=None)
-            blend = mask.astype(np.float32)
-            synth[z] = matched * blend + bg * (1.0 - blend)
-    else:
-        for z in range(target_z):
-            if z == anchor_z:
-                continue
-            synth[z] = exposure.match_histograms(synth[z], patient_norm, channel_axis=None)
-
-    synth[anchor_z] = patient_norm
-
-    if mask is not None:
-        envelope = build_brain_envelope((target_z, h, w), mask.astype(np.float32), anchor_z)
-        bg = float(np.median(patient_norm[~mask])) if mask.any() else 0.0
-        for z in range(target_z):
-            if z == anchor_z:
-                continue
-            env = envelope[z]
-            synth[z] = synth[z] * env + bg * (1.0 - env)
-
-    # Through-plane continuity (preserve anchor)
-    smoothed = gaussian_filter(synth, sigma=(0.45, 0.6, 0.6))
-    for z in range(target_z):
-        if z == anchor_z:
-            continue
-        dz = abs(z - anchor_z)
-        wgt = min(0.2, 0.05 * dz)
-        synth[z] = (1.0 - wgt) * synth[z] + wgt * smoothed[z]
-    synth[anchor_z] = patient_norm
-
-    strategy = f"registered_atlas_3d_{mri_view.value}"
-    return np.clip(synth, 0.0, 1.0).astype(np.float32), strategy, best_i
+    strategy = f"patient_primary_registered_{mri_view.value}"
+    return synth, strategy, best_i
 
 
 def _fallback_expansion(patient: np.ndarray, target_z: int) -> np.ndarray:
