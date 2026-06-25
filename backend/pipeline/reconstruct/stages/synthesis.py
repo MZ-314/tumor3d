@@ -23,9 +23,17 @@ async def run_synthesis(state: PipelineState) -> None:
         organ_mask_2d=state.organ_mask_2d,
         mri_view=state.scan_context.mri_view,
         atlas_warp=state.atlas_warp,
+        blueprint=state.blueprint,
     )
     state.synthesis = result
     state.output_volume = out_volume
+
+    pose_path = state.work_dir / "pose_estimate.json"
+    if pose_path.is_file() and state.scan_context is not None:
+        from shared.schemas.pydantic.pipeline import PoseEstimate
+
+        pose = PoseEstimate.model_validate_json(pose_path.read_text(encoding="utf-8"))
+        state.scan_context = state.scan_context.model_copy(update={"mri_view": pose.mri_view})
 
     path = state.work_dir / "synthesis_result.json"
     path.write_text(state.synthesis.model_dump_json(indent=2), encoding="utf-8")

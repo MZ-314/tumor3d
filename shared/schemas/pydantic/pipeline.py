@@ -116,8 +116,19 @@ class ReconstructionBlueprint(BaseModel):
     anchor_slice_indices: list[int] = Field(default_factory=list)
     label_map_seed_path: str | None = None
     organ_extent_zyx: list[int] | None = Field(default=None, min_length=3, max_length=3)
-    synthesis_strategy: str = "atlas_anchored"
+    synthesis_strategy: str = "ml_volume_generator"
     locked_lesion_planes: list[int] = Field(default_factory=list)
+
+
+class PoseEstimate(BaseModel):
+    """Learned or DICOM-derived slice pose (Phase 6b)."""
+
+    organ_type: OrganType
+    through_plane_axis: int = Field(..., ge=0, le=2)
+    slice_index_normalized: float = Field(..., ge=0.0, le=1.0)
+    mri_view: MriView
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    source: str = Field(..., description="dicom | ml | heuristic")
 
 
 class SynthesisResult(BaseModel):
@@ -129,6 +140,8 @@ class SynthesisResult(BaseModel):
     real_slices_preserved: int = 0
     synthetic_slices_generated: int = 0
     strategy: str = "measured"
+    model_version: str | None = None
+    pose_estimate_path: str | None = None
 
 
 class PlaneMetrics(BaseModel):

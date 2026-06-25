@@ -23,3 +23,12 @@ ATLAS_BRAIN_TEMPLATE = ATLAS_BRAIN_DIR / "template.nii.gz"
 NNU_NET_MODEL_DIR = Path(os.environ.get("NNU_NET_MODEL_DIR", str(REPO_ROOT / "models" / "nnunet")))
 
 VALIDATION_DICE_MIN = float(os.environ.get("VALIDATION_DICE_MIN", "0.5"))
+
+# Phase 6b — ML volume synthesis (default for single-slice USP)
+SYNTHESIS_BACKEND = os.environ.get("SYNTHESIS_BACKEND", "ml").strip().lower()
+ML_VOLUME_MODEL_DIR = Path(
+    os.environ.get("ML_VOLUME_MODEL_DIR", str(REPO_ROOT / "models" / "brain_recon"))
+)
+ML_POSE_CHECKPOINT = Path(
+    os.environ.get("ML_POSE_CHECKPOINT", str(ML_VOLUME_MODEL_DIR / "pose_net.pt"))
+)

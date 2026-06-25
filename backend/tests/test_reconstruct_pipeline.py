@@ -34,6 +34,7 @@ def test_pipeline_stage_list_matches_architecture() -> None:
 async def test_reconstruction_pipeline_e2e(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     gpu_required()
     monkeypatch.setenv("SEGMENTATION_BACKEND", "monai")
+    monkeypatch.setenv("SYNTHESIS_BACKEND", "atlas")
 
     from PIL import Image
     from pipeline.reconstruct import run_reconstruction_pipeline

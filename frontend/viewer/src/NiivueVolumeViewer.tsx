@@ -145,7 +145,7 @@ export function NiivueVolumeViewer({
       {status === "ready" && (
         <p className="niivue-hint">
           {sliceCount < 10
-            ? "AI-predicted brain volume — drag crosshair to explore slices (anchor = your upload)"
+            ? "ML-estimated brain volume — anchor slice = your upload; other slices are AI-generated (parallel to your scan)"
             : "Drag crosshair to slice · scroll to zoom · right panel = 3D volume"}
         </p>
       )}
