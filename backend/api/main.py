@@ -71,6 +71,7 @@ app.mount("/static", StaticFiles(directory=str(DATA_DIR)), name="static")
 @app.get("/health")
 def health() -> dict[str, str | bool]:
     ml_ckpt = ML_VOLUME_MODEL_DIR / "volume_generator.pt"
+    ml_refiner = ML_VOLUME_MODEL_DIR / "volume_refiner_3d.pt"
     return {
         "status": "ok",
         "pipeline": "meddollina_3d",
@@ -80,6 +81,7 @@ def health() -> dict[str, str | bool]:
         "segmentation_backend": SEGMENTATION_BACKEND,
         "synthesis_backend": SYNTHESIS_BACKEND,
         "ml_volume_generator_ready": ml_ckpt.is_file(),
+        "ml_volume_refiner_ready": ml_refiner.is_file(),
     }
 
 

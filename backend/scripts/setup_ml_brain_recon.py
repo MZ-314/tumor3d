@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bootstrap ML brain volume generator checkpoint (train on atlas template)."""
+"""Bootstrap ML brain volume generator + 3D refiner checkpoints."""
 
 from __future__ import annotations
 
@@ -17,9 +17,6 @@ _INSTALL_HINT = (
     "Python dependencies missing. On RunPod run:\n"
     "  cd /workspace/tumor3d/backend\n"
     '  pip install -e ".[dev,gpu,dicom]"\n'
-    "  pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg\n"
-    "  pip install git+https://github.com/facebookresearch/segment-anything.git\n"
-    "  pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK"
 )
 
 
@@ -33,13 +30,10 @@ def _require_deps() -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    parser = argparse.ArgumentParser(description="Bootstrap ML brain volume generator")
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Retrain even if checkpoint already exists",
-    )
-    parser.add_argument("--epochs", type=int, default=20, help="Bootstrap epochs (default 20)")
+    parser = argparse.ArgumentParser(description="Bootstrap ML brain reconstruction models")
+    parser.add_argument("--force", action="store_true", help="Retrain even if checkpoints exist")
+    parser.add_argument("--epochs", type=int, default=20, help="Slice generator epochs")
+    parser.add_argument("--refiner-epochs", type=int, default=25, help="3D refiner epochs")
     args = parser.parse_args()
 
     _require_deps()
@@ -47,7 +41,8 @@ def main() -> None:
     import torch
 
     from config_pipeline import ATLAS_BRAIN_TEMPLATE, ML_VOLUME_MODEL_DIR
-    from pipeline.ml.training.train_volume_generator import train
+    from pipeline.ml.training.train_volume_generator import train as train_slices
+    from pipeline.ml.training.train_volume_refiner_3d import train as train_refiner
 
     if not ATLAS_BRAIN_TEMPLATE.is_file():
         raise SystemExit(
@@ -55,27 +50,40 @@ def main() -> None:
             "Run first: python backend/scripts/setup_brain_atlas.py"
         )
 
-    out = ML_VOLUME_MODEL_DIR / "volume_generator.pt"
-    if out.is_file() and not args.force:
-        print(f"OK: checkpoint already at {out} (use --force to retrain)")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    volumes = [ATLAS_BRAIN_TEMPLATE]
+    slice_out = ML_VOLUME_MODEL_DIR / "volume_generator.pt"
+    refiner_out = ML_VOLUME_MODEL_DIR / "volume_refiner_3d.pt"
+
+    if slice_out.is_file() and refiner_out.is_file() and not args.force:
+        print(f"OK: slice model {slice_out}")
+        print(f"OK: 3D refiner {refiner_out}")
         return
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(
-        f"Bootstrap ML training on {device} using {ATLAS_BRAIN_TEMPLATE.name} …\n"
-        "Do not interrupt — first lines appear after dataset build (~30s).",
-        flush=True,
-    )
+    if not slice_out.is_file() or args.force:
+        print(f"[1/2] Training parallel-slice generator on {device} …", flush=True)
+        train_slices(
+            volumes,
+            output_path=slice_out,
+            epochs=args.epochs,
+            batch_size=16,
+            samples_per_volume=192,
+            device=device,
+        )
+        print(f"Slice generator ready: {slice_out}", flush=True)
 
-    train(
-        [ATLAS_BRAIN_TEMPLATE],
-        output_path=out,
-        epochs=args.epochs,
-        batch_size=16,
-        samples_per_volume=192,
-        device=device,
-    )
-    print(f"ML brain volume generator ready: {out}", flush=True)
+    if not refiner_out.is_file() or args.force:
+        print(f"[2/2] Training 3D volume refiner on {device} …", flush=True)
+        train_refiner(
+            volumes,
+            output_path=refiner_out,
+            epochs=args.refiner_epochs,
+            batch_size=4,
+            device=device,
+        )
+        print(f"3D refiner ready: {refiner_out}", flush=True)
+
+    print("ML brain reconstruction models ready.", flush=True)
 
 
 if __name__ == "__main__":

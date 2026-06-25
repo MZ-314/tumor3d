@@ -19,15 +19,24 @@ from shared.schemas.pydantic.pipeline import (
 )
 
 
-def _target_depth(slice_count: int, slice_thickness_mm: float) -> int:
-    """Minimum z depth for 3D mesh/volume from sparse stacks."""
+def _target_depth(
+    slice_count: int,
+    slice_thickness_mm: float,
+    pixel_spacing_mm: tuple[float, float],
+    h: int,
+    w: int,
+) -> int:
+    """Z depth sized for ~isotropic brain extent (avoids thin rectangular slab)."""
     if slice_count >= 10:
         return slice_count
     if slice_count >= 6:
         return max(slice_count, 24)
-    extent_mm = 120.0
-    estimated = int(round(extent_mm / max(slice_thickness_mm, 0.1)))
-    return int(np.clip(estimated, 32, 96))
+    row_sp, col_sp = pixel_spacing_mm
+    in_plane_mm = max(h * row_sp, w * col_sp)
+    # Adult brain ~140–160 mm; match in-plane FOV so 3D looks volumetric not pancake
+    brain_extent_mm = float(np.clip(in_plane_mm * 0.75, 120.0, 170.0))
+    estimated = int(round(brain_extent_mm / max(slice_thickness_mm, 0.5)))
+    return int(np.clip(estimated, 48, 128))
 
 
 def synthesize_volume(
@@ -50,7 +59,13 @@ def synthesize_volume(
     """
     data = volume.data
     z_in, h, w = data.shape
-    target_z = _target_depth(z_in, volume.slice_thickness_mm)
+    target_z = _target_depth(
+        z_in,
+        volume.slice_thickness_mm,
+        volume.pixel_spacing_mm,
+        h,
+        w,
+    )
 
     strategy = "measured_stack"
     model_version: str | None = None

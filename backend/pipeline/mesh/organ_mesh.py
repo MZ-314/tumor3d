@@ -9,6 +9,7 @@ import trimesh
 from scipy.ndimage import gaussian_filter
 
 from pipeline.ingest.images import SliceVolume
+from pipeline.ml.brain_envelope import build_brain_envelope_3d
 
 
 def build_organ_mesh_scene(
@@ -36,12 +37,9 @@ def build_organ_mesh_scene(
                 > 0.5
             )
         anchor = z_count // 2
-        mask3d = np.zeros(data.shape, dtype=bool)
-        for z in range(z_count):
-            falloff = max(0.35, 1.0 - abs(z - anchor) / max(anchor, 1))
-            mask3d[z] = mask2d if z == anchor else (data[z] > 0.12) & (falloff > 0.4)
+        mask3d = build_brain_envelope_3d((z_count, h, w), mask2d, anchor) > 0.35
         mask3d[anchor] = mask2d
-        field = gaussian_filter(mask3d.astype(np.float32), sigma=(1.0, 1.0, 1.0))
+        field = gaussian_filter(mask3d.astype(np.float32), sigma=(1.2, 1.0, 1.0))
     else:
         field = gaussian_filter(data, sigma=(0.8, 1.0, 1.0))
 
