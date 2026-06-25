@@ -11,6 +11,7 @@ from config_medical import SEGMENTATION_BACKEND
 from pipeline.export.nifti_export import combined_lesion_mask, save_mask_nifti
 from pipeline.ingest.images import save_png_overlay
 from pipeline.mesh.lesion_mesh import build_lesion_geometries, get_scene_path
+from pipeline.mesh.organ_mesh import build_organ_mesh_scene
 from pipeline.mesh.slice_preview import build_slice_preview_scene
 from pipeline.reconstruct.context import PipelineState
 from pipeline.segment.backends import VOLUME_ONLY_MODALITIES
@@ -43,7 +44,16 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
         geometries = build_lesion_geometries(volume, seg.lesions, work_dir, reconstruction_id)
     else:
         geometries = []
-        build_slice_preview_scene(volume, work_dir, reconstruction_id)
+        organ_mask = state.organ_mask_2d
+        if state.scan_context and state.scan_context.slice_count <= 1:
+            build_organ_mesh_scene(
+                volume,
+                work_dir,
+                reconstruction_id,
+                organ_mask_2d=organ_mask,
+            )
+        else:
+            build_slice_preview_scene(volume, work_dir, reconstruction_id)
 
     z_mid = volume.data.shape[0] // 2
     overlay_path = work_dir / "overlay.png"
@@ -100,18 +110,19 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
         )
     elif no_lesion:
         disclaimer = (
-            "MONAI found no whole-tumor region on this upload. "
-            "Try brain DICOM T1c or more axial slices with visible enhancing tumor. "
+            "AI-predicted 3D brain from your single slice (atlas + MedSAM). "
+            "The uploaded plane is anchored; other anatomy is an estimate — not measured. "
             "Not for diagnosis."
         )
     else:
         disclaimer = (
-            "Tumor location from MONAI BraTS (brain MRI). Depth improves with more slices. "
-            "AI-estimated regions are labeled in pipeline validation. Not for diagnosis."
+            "AI-predicted 3D brain from sparse MRI: your slice is anchored; tumor depth beyond "
+            "the upload is estimated by MONAI BraTS. Not for diagnosis."
         )
 
     z_count = state.scan_context.slice_count if state.scan_context else volume.data.shape[0]
     tier = _accuracy_tier(z_count)
+    single_slice_ai = z_count <= 1 and not volume_only
 
     response = ReconstructResponse(
         reconstruction_id=reconstruction_id,
@@ -128,7 +139,7 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
         accuracy_tier=tier,
         modality=modality,
         pipeline_type="medical",
-        geometry_source="measured",
+        geometry_source="mixed" if single_slice_ai else "measured",
         segmentation_backend=effective_backend,
         lesions=lesion_results,
         assistant_summary="",

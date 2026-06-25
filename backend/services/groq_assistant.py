@@ -50,11 +50,20 @@ def _template_summary(result: ReconstructResponse, user_text: str | None) -> str
     )
 
     if result.viewer_mode == "volume" and result.volume_nifti_url:
-        target = "scan" if volume_only else "brain"
-        if result.slice_count <= 1:
+        if result.slice_count <= 1 and result.modality == "brain_mri":
             lines.append(
-                f"Only 1 slice — the 3D panel is a single MRI sheet, not a full {target}. "
-                "Upload all DICOM slices from the same study (use the 📁 folder button)."
+                "Built an **AI-predicted full 3D brain** from your single DICOM slice. "
+                "Your upload is locked on the anchor plane; surrounding anatomy is estimated "
+                "using MedSAM + brain atlas — doctors should treat off-slice detail as an estimate."
+            )
+            lines.append(
+                "Open the 3D volume panel to scroll through the predicted stack. "
+                "Red overlay appears when MONAI detects a tumor region."
+            )
+        elif result.slice_count <= 1:
+            lines.append(
+                f"Only 1 slice — open the 3D panel to inspect the volume. "
+                "Upload more DICOM slices from the same study for a measured stack."
             )
         elif result.slice_count < 10:
             lines.append(

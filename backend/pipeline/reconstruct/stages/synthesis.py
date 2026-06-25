@@ -20,6 +20,7 @@ async def run_synthesis(state: PipelineState) -> None:
         work_dir=state.work_dir,
         reconstruction_id=state.reconstruction_id,
         anchor_indices=state.scan_context.anchor_slice_indices,
+        organ_mask_2d=state.organ_mask_2d,
     )
     state.synthesis = result
     state.output_volume = out_volume

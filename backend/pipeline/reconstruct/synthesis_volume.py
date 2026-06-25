@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 from scipy.ndimage import zoom
 
-from config_medical import MedicalPipelineError
 from pipeline.export.nifti_export import save_mask_nifti, save_volume_nifti
 from pipeline.ingest.images import SliceVolume
 from pipeline.segment.backends import LesionMask
@@ -33,6 +32,7 @@ def synthesize_volume(
     work_dir: Path,
     reconstruction_id: str,
     anchor_indices: list[int],
+    organ_mask_2d: np.ndarray | None = None,
 ) -> tuple[SynthesisResult, SliceVolume]:
     """
     Build a 3D intensity volume from uploaded slices.
@@ -49,18 +49,14 @@ def synthesize_volume(
         synthetic_count = 0
         strategy = "measured_stack"
     elif z_in == 1:
-        # Expand single anchor slice along z with edge-weighted blending toward neighbors
-        anchor = data[0]
-        synth = np.zeros((target_z, h, w), dtype=np.float32)
-        mid = target_z // 2
-        synth[mid] = anchor
-        for z in range(target_z):
-            if z == mid:
-                continue
-            weight = 1.0 - abs(z - mid) / max(mid, 1)
-            synth[z] = anchor * (0.85 + 0.15 * weight)
+        from pipeline.reconstruct.atlas_synthesis import synthesize_atlas_anchored_volume
+
+        synth, strategy = synthesize_atlas_anchored_volume(
+            volume,
+            target_z=target_z,
+            organ_mask_2d=organ_mask_2d,
+        )
         synthetic_count = target_z - 1
-        strategy = "single_slice_z_expansion"
     else:
         zoom_factor = target_z / z_in
         synth = zoom(data, (zoom_factor, 1.0, 1.0), order=1)
