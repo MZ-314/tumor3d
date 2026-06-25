@@ -1,6 +1,7 @@
 from shared.schemas.pydantic.common import AccuracyTier, SourceType
 from shared.schemas.pydantic.pipeline import (
     AnatomicalMap,
+    AnatomicalModule,
     AtlasWarpResult,
     ConfidenceRegion,
     InputSource,
@@ -8,6 +9,8 @@ from shared.schemas.pydantic.pipeline import (
     LesionCandidate2D,
     ModelOutputs,
     MriView,
+    ModuleAssemblyResult,
+    ModuleGraph,
     OrganType,
     PipelineArtifacts,
     PlaneMetrics,
@@ -16,6 +19,7 @@ from shared.schemas.pydantic.pipeline import (
     ScanContext,
     SliceSpacing,
     StageTiming,
+    StructureReplacementResult,
     SynthesisResult,
     ValidationReport,
 )
@@ -30,6 +34,7 @@ from shared.schemas.pydantic.reconstruct import (
 __all__ = [
     "AccuracyTier",
     "AnatomicalMap",
+    "AnatomicalModule",
     "AtlasWarpResult",
     "ChatDetail",
     "ChatMessageRecord",
@@ -41,6 +46,8 @@ __all__ = [
     "LesionResult",
     "ModelOutputs",
     "MriView",
+    "ModuleAssemblyResult",
+    "ModuleGraph",
     "OrganType",
     "PipelineArtifacts",
     "PlaneMetrics",
@@ -51,6 +58,7 @@ __all__ = [
     "SliceSpacing",
     "SourceType",
     "StageTiming",
+    "StructureReplacementResult",
     "SynthesisResult",
     "ValidationReport",
 ]

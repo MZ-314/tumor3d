@@ -29,6 +29,13 @@ SYNTHESIS_BACKEND = os.environ.get("SYNTHESIS_BACKEND", "ml").strip().lower()
 ML_VOLUME_MODEL_DIR = Path(
     os.environ.get("ML_VOLUME_MODEL_DIR", str(REPO_ROOT / "models" / "brain_recon"))
 )
-ML_POSE_CHECKPOINT = Path(
-    os.environ.get("ML_POSE_CHECKPOINT", str(ML_VOLUME_MODEL_DIR / "pose_net.pt"))
+# Modular brain reconstruction (default primary path)
+MODULAR_RECON = os.environ.get("MODULAR_RECON", "1").strip().lower() in ("1", "true", "yes")
+LEGACY_VOLUME_SYNTHESIS = os.environ.get("LEGACY_VOLUME_SYNTHESIS", "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+MODULAR_BRAIN_DIR = Path(
+    os.environ.get("MODULAR_BRAIN_DIR", str(ATLAS_BRAIN_DIR / "modules"))
 )

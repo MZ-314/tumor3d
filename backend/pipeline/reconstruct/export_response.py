@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 
 from config_medical import SEGMENTATION_BACKEND
+from config_pipeline import LEGACY_VOLUME_SYNTHESIS, MODULAR_RECON
 from pipeline.export.nifti_export import combined_lesion_mask, save_mask_nifti
 from pipeline.ingest.images import save_png_overlay
 from pipeline.mesh.lesion_mesh import build_lesion_geometries, get_scene_path
@@ -40,20 +41,32 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
     work_dir = state.work_dir
     modality = state.modality
 
-    if seg.lesions:
-        geometries = build_lesion_geometries(volume, seg.lesions, work_dir, reconstruction_id)
+    modular = (
+        MODULAR_RECON
+        and not LEGACY_VOLUME_SYNTHESIS
+        and modality.lower() == "brain_mri"
+        and state.module_assembly is not None
+    )
+
+    if not modular:
+        if seg.lesions:
+            geometries = build_lesion_geometries(volume, seg.lesions, work_dir, reconstruction_id)
+        else:
+            geometries = []
+            organ_mask = state.organ_mask_2d
+            if state.scan_context and state.scan_context.slice_count <= 1:
+                build_organ_mesh_scene(
+                    volume,
+                    work_dir,
+                    reconstruction_id,
+                    organ_mask_2d=organ_mask,
+                )
+            else:
+                build_slice_preview_scene(volume, work_dir, reconstruction_id)
     else:
         geometries = []
-        organ_mask = state.organ_mask_2d
-        if state.scan_context and state.scan_context.slice_count <= 1:
-            build_organ_mesh_scene(
-                volume,
-                work_dir,
-                reconstruction_id,
-                organ_mask_2d=organ_mask,
-            )
-        else:
-            build_slice_preview_scene(volume, work_dir, reconstruction_id)
+        if seg.lesions:
+            geometries = build_lesion_geometries(volume, seg.lesions, work_dir, reconstruction_id)
 
     z_mid = volume.data.shape[0] // 2
     overlay_path = work_dir / "overlay.png"
@@ -69,6 +82,13 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
         Image.fromarray(arr).save(source_path)
 
     base = "/static"
+    volume_only = modality.lower() in VOLUME_ONLY_MODALITIES
+    no_lesion = len(seg.lesions) == 0
+    z_count = state.scan_context.slice_count if state.scan_context else volume.data.shape[0]
+    tier = _accuracy_tier(z_count)
+    single_slice_ai = z_count <= 1 and not volume_only
+    effective_backend = "volume_only" if volume_only else SEGMENTATION_BACKEND
+
     volume_nii_path = work_dir / f"{reconstruction_id}_volume.nii.gz"
     volume_nifti_url = (
         f"{base}/{reconstruction_id}/{volume_nii_path.name}" if volume_nii_path.exists() else None
@@ -82,27 +102,32 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
         tumor_mask_nifti_url = f"{base}/{reconstruction_id}/{mask_nii_path.name}"
 
     scene_path = get_scene_path(work_dir, reconstruction_id)
-    lesion_results: list[LesionResult] = []
-    for geo in geometries:
-        lesion_results.append(
-            LesionResult(
-                lesion_id=geo.lesion_id,
-                mesh_url=f"{base}/{reconstruction_id}/{geo.mesh_path.name}",
-                centroid_mm=geo.centroid_mm,
-                bounding_box_2d=geo.bounding_box_2d,
-                bounding_box_3d_mm=geo.bounding_box_3d_mm,
-                volume_mm3=geo.volume_mm3,
-                in_plane_confidence=geo.in_plane_confidence,
-                depth_confidence=geo.depth_confidence,
-                vertices=geo.vertices,
-            )
+    modules_out: list = []
+    module_manifest_url = None
+    explorer_mode = "legacy"
+    viewer_mode = "volume" if volume_nifti_url else "mesh"
+    geometry_source = "mixed" if single_slice_ai else "measured"
+
+    if modular and state.module_assembly is not None:
+        assembly = state.module_assembly
+        root = Path(assembly.root_glb_path)
+        if root.is_file():
+            import shutil
+
+            shutil.copy2(root, scene_path)
+        modules_out = assembly.modules
+        if assembly.module_manifest_path and Path(assembly.module_manifest_path).is_file():
+            manifest_name = Path(assembly.module_manifest_path).name
+            module_manifest_url = f"{base}/{reconstruction_id}/assembly/{manifest_name}"
+        explorer_mode = "modular"
+        viewer_mode = "modular"
+        geometry_source = "modular_atlas"
+        disclaimer = (
+            "Modular 3D brain reconstruction: your DICOM slice and tumor footprint are measured "
+            "on the anchor plane; lobe/subcortical modules are registered atlas geometry morphed "
+            "near the lesion. Niivue volume (if shown) is AI-completed depth. Not for diagnosis."
         )
-
-    volume_only = modality.lower() in VOLUME_ONLY_MODALITIES
-    effective_backend = "volume_only" if volume_only else SEGMENTATION_BACKEND
-    no_lesion = len(seg.lesions) == 0
-
-    if volume_only:
+    elif volume_only:
         disclaimer = (
             "Volume-only mode: building a 3D stack from your DICOM slices. "
             "No tumor/lesion AI — MONAI BraTS is trained on brain MRI only. "
@@ -120,9 +145,21 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
             "the upload is estimated by MONAI BraTS. Not for diagnosis."
         )
 
-    z_count = state.scan_context.slice_count if state.scan_context else volume.data.shape[0]
-    tier = _accuracy_tier(z_count)
-    single_slice_ai = z_count <= 1 and not volume_only
+    lesion_results: list[LesionResult] = []
+    for geo in geometries:
+        lesion_results.append(
+            LesionResult(
+                lesion_id=geo.lesion_id,
+                mesh_url=f"{base}/{reconstruction_id}/{geo.mesh_path.name}",
+                centroid_mm=geo.centroid_mm,
+                bounding_box_2d=geo.bounding_box_2d,
+                bounding_box_3d_mm=geo.bounding_box_3d_mm,
+                volume_mm3=geo.volume_mm3,
+                in_plane_confidence=geo.in_plane_confidence,
+                depth_confidence=geo.depth_confidence,
+                vertices=geo.vertices,
+            )
+        )
 
     response = ReconstructResponse(
         reconstruction_id=reconstruction_id,
@@ -134,12 +171,15 @@ async def build_reconstruct_response(state: PipelineState) -> ReconstructRespons
         scene_mesh_url=f"{base}/{reconstruction_id}/{scene_path.name}",
         volume_nifti_url=volume_nifti_url,
         tumor_mask_nifti_url=tumor_mask_nifti_url,
-        viewer_mode="volume" if volume_nifti_url else "mesh",
+        module_manifest_url=module_manifest_url,
+        modules=modules_out,
+        explorer_mode=explorer_mode,
+        viewer_mode=viewer_mode,
         slice_count=z_count,
         accuracy_tier=tier,
         modality=modality,
         pipeline_type="medical",
-        geometry_source="mixed" if single_slice_ai else "measured",
+        geometry_source=geometry_source,
         segmentation_backend=effective_backend,
         lesions=lesion_results,
         assistant_summary="",

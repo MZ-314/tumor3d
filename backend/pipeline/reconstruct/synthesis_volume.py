@@ -78,7 +78,9 @@ def synthesize_volume(
         strategy = "measured_stack"
     elif z_in == 1:
         use_ml = SYNTHESIS_BACKEND == "ml" and (
-            blueprint is None or blueprint.synthesis_strategy == "ml_volume_generator"
+            blueprint is None
+            or blueprint.synthesis_strategy
+            in ("ml_volume_generator", "modular_volume_completion", "modular_assembly")
         )
         if use_ml:
             from pipeline.reconstruct.ml_synthesis import synthesize_ml_volume

@@ -8,7 +8,7 @@ from shared.schemas.pydantic.common import (
     SourceType,
     Vec3,
 )
-from shared.schemas.pydantic.pipeline import PipelineArtifacts
+from shared.schemas.pydantic.pipeline import PipelineArtifacts, AnatomicalModule
 
 
 class LesionResult(BaseModel):
@@ -34,7 +34,10 @@ class ReconstructResponse(BaseModel):
     scene_mesh_url: str
     volume_nifti_url: str | None = None
     tumor_mask_nifti_url: str | None = None
-    viewer_mode: str = "volume"
+    module_manifest_url: str | None = None
+    modules: list["AnatomicalModule"] = Field(default_factory=list)
+    explorer_mode: str = "legacy"
+    viewer_mode: str = "mesh"
     mesh_format: str = "glb"
     pipeline_type: str = "medical"
     geometry_source: str = "measured"

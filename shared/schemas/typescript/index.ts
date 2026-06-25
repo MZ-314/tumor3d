@@ -44,18 +44,53 @@ export interface LesionResult {
   vertices: number[][];
 }
 
+export interface AnatomicalModule {
+  module_id: string;
+  display_name: string;
+  mesh_path: string;
+  transform_4x4: number[][];
+  geometry_source: SourceType;
+  confidence: number;
+  anchor_locked: boolean;
+  morph_applied: boolean;
+  connects_to: string[];
+  metadata_path?: string | null;
+}
+
+export interface ModuleGraphEdge {
+  source_id: string;
+  target_id: string;
+  relation: string;
+}
+
+export interface ModuleGraph {
+  nodes: string[];
+  edges: ModuleGraphEdge[];
+}
+
+export interface ModuleAssemblyResult {
+  root_glb_path: string;
+  tumor_glb_path?: string | null;
+  module_manifest_path?: string | null;
+  modules: AnatomicalModule[];
+  graph?: ModuleGraph | null;
+}
+
 export interface ReconstructResponse {
   reconstruction_id: string;
   chat_id: string | null;
   source_image_url: string;
   overlay_image_url: string | null;
-    scene_mesh_url: string;
-    volume_nifti_url?: string | null;
-    tumor_mask_nifti_url?: string | null;
-    viewer_mode?: string;
-    pipeline_type?: string;
-    geometry_source?: string;
-    mesh_format: string;
+  scene_mesh_url: string;
+  volume_nifti_url?: string | null;
+  tumor_mask_nifti_url?: string | null;
+  module_manifest_url?: string | null;
+  modules?: AnatomicalModule[];
+  explorer_mode?: "modular" | "volume" | "legacy";
+  viewer_mode?: string;
+  pipeline_type?: string;
+  geometry_source?: string;
+  mesh_format: string;
   slice_count: number;
   accuracy_tier: AccuracyTier;
   modality: string;
@@ -165,6 +200,7 @@ export interface PipelineArtifacts {
   atlas_warp?: unknown | null;
   blueprint?: unknown | null;
   synthesis?: unknown | null;
+  module_assembly?: ModuleAssemblyResult | null;
   validation?: ValidationReport | null;
   stage_timings: StageTiming[];
 }

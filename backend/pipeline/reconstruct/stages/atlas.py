@@ -1,9 +1,10 @@
-"""Phase 4 — atlas matching."""
+"""Phase 4 — atlas matching (modular registration when MODULAR_RECON=1)."""
 
 from __future__ import annotations
 
 import numpy as np
 
+from config_pipeline import LEGACY_VOLUME_SYNTHESIS, MODULAR_RECON
 from pipeline.reconstruct.atlas_register import run_atlas_for_organ
 from pipeline.reconstruct.context import PipelineState
 from pipeline.segment.backends import VOLUME_ONLY_MODALITIES
@@ -23,6 +24,21 @@ async def run_atlas_matching(state: PipelineState) -> None:
             atlas_version="volume_only",
             registration_confidence=1.0,
         )
+    elif MODULAR_RECON and not LEGACY_VOLUME_SYNTHESIS and state.scan_context.organ_type == OrganType.BRAIN:
+        if state.organ_mask_2d is None:
+            raise RuntimeError("organ_mask_2d required for modular brain reconstruction")
+
+        from pipeline.modular.orchestrator import (
+            apply_modular_context_to_state,
+            build_modular_context,
+            run_modular_atlas_block,
+            run_modular_perception,
+        )
+
+        ctx = build_modular_context(state)
+        run_modular_perception(ctx)
+        run_modular_atlas_block(ctx)
+        apply_modular_context_to_state(state, ctx)
     elif state.scan_context.organ_type == OrganType.BRAIN:
         if state.organ_mask_2d is None:
             raise RuntimeError("organ_mask_2d required for brain atlas registration")

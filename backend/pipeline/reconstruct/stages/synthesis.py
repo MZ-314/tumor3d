@@ -1,9 +1,10 @@
-"""Phase 6 — synthetic slice generation."""
+"""Phase 6 — synthetic slice generation / modular volume completion."""
 
 from __future__ import annotations
 
 import asyncio
 
+from config_pipeline import LEGACY_VOLUME_SYNTHESIS, MODULAR_RECON
 from pipeline.reconstruct.context import PipelineState
 from pipeline.reconstruct.synthesis_volume import synthesize_volume
 
@@ -11,6 +12,25 @@ from pipeline.reconstruct.synthesis_volume import synthesize_volume
 async def run_synthesis(state: PipelineState) -> None:
     if state.slice_volume is None or state.segmentation is None or state.scan_context is None:
         raise RuntimeError("slice_volume and segmentation required")
+
+    if MODULAR_RECON and not LEGACY_VOLUME_SYNTHESIS and state.modality.lower() == "brain_mri":
+        from pipeline.modular.orchestrator import (
+            apply_modular_context_to_state,
+            build_modular_context,
+            run_modular_completion_block,
+            run_modular_local_block,
+        )
+
+        ctx = build_modular_context(state)
+        ctx.blueprint = state.blueprint
+        ctx.atlas_warp = state.atlas_warp
+        run_modular_local_block(ctx)
+        await run_modular_completion_block(ctx)
+        apply_modular_context_to_state(state, ctx)
+        path = state.work_dir / "synthesis_result.json"
+        if state.synthesis is not None:
+            path.write_text(state.synthesis.model_dump_json(indent=2), encoding="utf-8")
+        return
 
     lesions = state.segmentation.lesions
     result, out_volume = await asyncio.to_thread(

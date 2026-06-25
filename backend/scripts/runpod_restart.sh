@@ -11,10 +11,16 @@ export SEGMENTATION_BACKEND=monai
 export IMAGE3D_BACKEND=triposr
 export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
 export ATLAS_BRAIN_DIR=/workspace/tumor3d/data/atlases/brain
+export MODULAR_BRAIN_DIR=/workspace/tumor3d/data/atlases/brain/modules
+export MODULAR_RECON=1
 export SYNTHESIS_BACKEND=ml
 export ML_VOLUME_MODEL_DIR=/workspace/tumor3d/models/brain_recon
 
 echo "==> Health prerequisites"
+if [[ ! -f "${MODULAR_BRAIN_DIR}/manifest.json" ]]; then
+  echo "Modular atlas missing — run: python backend/scripts/setup_brain_modules.py"
+  exit 1
+fi
 if [[ ! -f "${ML_VOLUME_MODEL_DIR}/volume_generator.pt" ]]; then
   echo "ML checkpoint missing — run: python backend/scripts/setup_ml_brain_recon.py"
   exit 1

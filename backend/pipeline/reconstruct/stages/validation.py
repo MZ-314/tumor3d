@@ -87,6 +87,18 @@ async def run_validation(state: PipelineState) -> None:
         ),
     ]
 
+    if state.module_assembly is not None:
+        for mod in state.module_assembly.modules:
+            regions.append(
+                ConfidenceRegion(
+                    region_id=mod.module_id,
+                    label=mod.display_name,
+                    source=mod.geometry_source,
+                    confidence=mod.confidence,
+                    mesh_url=None,
+                )
+            )
+
     state.validation = ValidationReport(
         overall_confidence=overall,
         anchor_plane_metrics=anchor_metrics,

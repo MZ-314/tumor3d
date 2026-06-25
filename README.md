@@ -86,14 +86,16 @@ cd /workspace/tumor3d/backend
 pip install -e ".[dev,gpu,dicom]"
 pip install huggingface_hub pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg
 pip install git+https://github.com/facebookresearch/segment-anything.git
-pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK
+pip install onnxruntime xatlas==0.0.9 moderngl SimpleITK trimesh scikit-image nibabel
 
 cd /workspace/tumor3d
 python backend/scripts/setup_triposr.py
 python backend/scripts/setup_monai_bundle.py
 python backend/scripts/setup_medsam.py
 python backend/scripts/setup_brain_atlas.py
+python backend/scripts/setup_brain_modules.py
 python backend/scripts/setup_ml_brain_recon.py
+python backend/scripts/train_volume_completion.py
 
 export PYTHONPATH=/workspace/tumor3d:/workspace/tumor3d/backend
 export DATA_DIR=/workspace/tumor3d/data
@@ -101,15 +103,15 @@ export SEGMENTATION_BACKEND=monai
 export IMAGE3D_BACKEND=triposr
 export TRIPOSR_DIR=/workspace/tumor3d/vendor/TripoSR
 export ATLAS_BRAIN_DIR=/workspace/tumor3d/data/atlases/brain
+export MODULAR_BRAIN_DIR=/workspace/tumor3d/data/atlases/brain/modules
+export MODULAR_RECON=1
 export SYNTHESIS_BACKEND=ml
 export ML_VOLUME_MODEL_DIR=/workspace/tumor3d/models/brain_recon
 
 uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-`pip install` must run from `backend/` on a fresh pod. `runpod_restart.sh` skips install when deps are already present.
-
-`GET /health` should show `"triposr_ready": true` for real AI 3D.
+`GET /health` should show `"modular_atlas_ready": true` and `"modular_recon": true` for the modular brain path.
 
 ## Tests
 

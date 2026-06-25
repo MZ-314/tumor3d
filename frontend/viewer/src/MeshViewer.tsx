@@ -4,6 +4,8 @@ import { Suspense, type ReactNode } from "react";
 import type { ReconstructResponse } from "@shared/index";
 import { ACCURACY_TIER_LABELS, API_BASE, resolveAssetUrl } from "./api";
 import { NiivueVolumeViewer } from "./NiivueVolumeViewer";
+import { AnatomicalExplorerPanel } from "./AnatomicalExplorerPanel";
+import { ModularBrainScene, useModularVisibility } from "./ModularBrainScene";
 import { SliceTexturedPlane } from "./SliceTexturedPlane";
 import { TumorMesh } from "./TumorMesh";
 import { ViewerErrorBoundary } from "./ViewerErrorBoundary";
@@ -40,14 +42,25 @@ export function MeshViewer({
     : null;
   const tierLabel =
     ACCURACY_TIER_LABELS[reconstruction.accuracy_tier] ?? reconstruction.accuracy_tier;
+  const useModular =
+    reconstruction.viewer_mode === "modular" ||
+    reconstruction.explorer_mode === "modular";
   const useVolume =
-    reconstruction.viewer_mode === "volume" && Boolean(reconstruction.volume_nifti_url);
+    !useModular &&
+    reconstruction.viewer_mode === "volume" &&
+    Boolean(reconstruction.volume_nifti_url);
+  const modularModules = reconstruction.modules ?? [];
+  const { visible: visibleModules, toggle: toggleModule, setVisible: setVisibleModules } =
+    useModularVisibility(modularModules);
   const sliceCount = reconstruction.slice_count;
   const isAi3d =
     reconstruction.pipeline_type === "ai_3d" || reconstruction.modality === "ai_3d";
   const showSceneMesh =
-    Boolean(reconstruction.scene_mesh_url) &&
-    (isAi3d || reconstruction.lesions.length > 0 || (reconstruction.modality === "brain_mri" && sliceCount <= 1));
+    useModular ||
+    (Boolean(reconstruction.scene_mesh_url) &&
+      (isAi3d ||
+        reconstruction.lesions.length > 0 ||
+        (reconstruction.modality === "brain_mri" && sliceCount <= 1)));
   const slicePreviewOnly = !useVolume && !showSceneMesh;
   const thinVolume = !isAi3d && sliceCount < 10;
   const volumeOnly =
@@ -64,6 +77,16 @@ export function MeshViewer({
         <p>
           Shape inferred from your 2D image — not a real CT/MRI volume. Rotate the model; interior
           detail is guessed by the AI.
+        </p>
+      </div>
+    );
+  } else if (useModular && sliceCount <= 1) {
+    depthBanner = (
+      <div className="volume-depth-banner volume-depth-banner--ai">
+        <strong>Modular 3D brain (1 slice)</strong>
+        <p>
+          Named lobe/subcortical modules from registered MNI atlas. Your DICOM slice is the anchor;
+          off-slice anatomy is atlas geometry + AI completion — not measured volume.
         </p>
       </div>
     );
@@ -189,12 +212,30 @@ export function MeshViewer({
       </ul>
 
       <p className="mesh-viewer__disclaimer">{reconstruction.disclaimer}</p>
+      {useModular && modularModules.length > 0 && (
+        <AnatomicalExplorerPanel
+          modules={modularModules}
+          visibleModules={visibleModules}
+          onToggle={toggleModule}
+          onShowAll={() => setVisibleModules(new Set(modularModules.map((m) => m.module_id)))}
+          onHideAll={() => setVisibleModules(new Set())}
+        />
+      )}
     </>
   );
 
   return (
-    <div className={`mesh-viewer mesh-viewer--${layout}`}>
+    <div className={`mesh-viewer mesh-viewer--${layout}${useModular ? " mesh-viewer--modular" : ""}`}>
       {depthBanner}
+      {useModular && modularModules.length > 0 && layout !== "chat" && (
+        <AnatomicalExplorerPanel
+          modules={modularModules}
+          visibleModules={visibleModules}
+          onToggle={toggleModule}
+          onShowAll={() => setVisibleModules(new Set(modularModules.map((m) => m.module_id)))}
+          onHideAll={() => setVisibleModules(new Set())}
+        />
+      )}
       <div className="mesh-viewer__canvas-wrap">
         <ViewerErrorBoundary>
           {useVolume ? (
@@ -213,6 +254,13 @@ export function MeshViewer({
               <Suspense fallback={<LoadingFallback />}>
                 {slicePreviewOnly ? (
                   <SliceTexturedPlane imageUrl={sourceUrl} overlayUrl={overlayUrl} />
+                ) : useModular ? (
+                  <ModularBrainScene
+                    meshUrl={reconstruction.scene_mesh_url}
+                    modules={modularModules}
+                    apiBase={apiBase}
+                    visibleModules={visibleModules}
+                  />
                 ) : (
                   <TumorMesh
                     meshUrl={reconstruction.scene_mesh_url}

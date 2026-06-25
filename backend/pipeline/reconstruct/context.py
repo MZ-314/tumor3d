@@ -11,6 +11,7 @@ from shared.schemas.pydantic.pipeline import (
     AnatomicalMap,
     AtlasWarpResult,
     ModelOutputs,
+    ModuleAssemblyResult,
     PipelineArtifacts,
     ReconstructionBlueprint,
     ScanContext,
@@ -41,6 +42,7 @@ class PipelineState:
     atlas_warp: AtlasWarpResult | None = None
     blueprint: ReconstructionBlueprint | None = None
     synthesis: SynthesisResult | None = None
+    module_assembly: ModuleAssemblyResult | None = None
     validation: ValidationReport | None = None
     response: ReconstructResponse | None = None
     timings: list[StageTiming] = field(default_factory=list)
@@ -57,6 +59,7 @@ class PipelineState:
             atlas_warp=self.atlas_warp,
             blueprint=self.blueprint,
             synthesis=self.synthesis,
+            module_assembly=self.module_assembly,
             validation=self.validation,
             stage_timings=self.timings,
         )

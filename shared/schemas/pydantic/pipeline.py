@@ -116,8 +116,57 @@ class ReconstructionBlueprint(BaseModel):
     anchor_slice_indices: list[int] = Field(default_factory=list)
     label_map_seed_path: str | None = None
     organ_extent_zyx: list[int] | None = Field(default=None, min_length=3, max_length=3)
-    synthesis_strategy: str = "ml_volume_generator"
+    synthesis_strategy: str = "modular_assembly"
     locked_lesion_planes: list[int] = Field(default_factory=list)
+
+
+class StructureReplacementResult(BaseModel):
+    """Audit trail for geometry-only module warping (no anchor intensity replace)."""
+
+    modules_warped: list[str] = Field(default_factory=list)
+    anchor_locked: bool = True
+    notes: list[str] = Field(default_factory=list)
+
+
+class AnatomicalModule(BaseModel):
+    """Single modular atlas component registered to the patient."""
+
+    module_id: str
+    display_name: str
+    mesh_path: str
+    transform_4x4: list[list[float]] = Field(
+        default_factory=lambda: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    )
+    geometry_source: SourceType = SourceType.INFERENCE
+    confidence: float = Field(0.5, ge=0.0, le=1.0)
+    anchor_locked: bool = False
+    morph_applied: bool = False
+    connects_to: list[str] = Field(default_factory=list)
+    metadata_path: str | None = None
+
+
+class ModuleGraphEdge(BaseModel):
+    source_id: str
+    target_id: str
+    relation: str = "connects_to"
+
+
+class ModuleGraph(BaseModel):
+    """Connectivity between anatomical modules."""
+
+    nodes: list[str] = Field(default_factory=list)
+    edges: list[ModuleGraphEdge] = Field(default_factory=list)
+
+
+class ModuleAssemblyResult(BaseModel):
+    """Modular GLB assembly outcome."""
+
+    root_glb_path: str
+    tumor_glb_path: str | None = None
+    module_manifest_path: str | None = None
+    modules: list[AnatomicalModule] = Field(default_factory=list)
+    graph: ModuleGraph | None = None
+    structure_replacement: StructureReplacementResult | None = None
 
 
 class PoseEstimate(BaseModel):
@@ -190,5 +239,6 @@ class PipelineArtifacts(BaseModel):
     atlas_warp: AtlasWarpResult | None = None
     blueprint: ReconstructionBlueprint | None = None
     synthesis: SynthesisResult | None = None
+    module_assembly: ModuleAssemblyResult | None = None
     validation: ValidationReport | None = None
     stage_timings: list[StageTiming] = Field(default_factory=list)
